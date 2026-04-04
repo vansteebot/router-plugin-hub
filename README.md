@@ -33,7 +33,7 @@ This repository is the umbrella home for:
 
 - [Repository](https://github.com/LanceLeeA/router-plugin-hub)
 - [Packages](https://github.com/LanceLeeA/router-plugin-hub/tree/main/packages)
-- [SSR Plus+ Enhanced](https://github.com/LanceLeeA/router-plugin-hub/tree/main/packages/ssrplus-enhanced)
+- [ShadowsocksR Plus](https://github.com/LanceLeeA/router-plugin-hub/tree/main/packages/ssrplus-enhanced)
 - [Releases](https://github.com/LanceLeeA/router-plugin-hub/releases)
 - [Release Notes](https://github.com/LanceLeeA/router-plugin-hub/tree/main/docs/releases)
 
@@ -71,9 +71,27 @@ The package currently under active maintenance is:
 
 - `packages/ssrplus-enhanced`
 
+## Package Index
+
+### ShadowsocksR Plus
+
+- Source path: `packages/ssrplus-enhanced`
+- Purpose:
+  - enhanced LuCI status and control UI
+  - safer async apply and restart flow
+  - SS import and packaging helpers
+  - auto-switch tuning and monitoring
+  - IPv6 mode control with safe defaults
+
+### OpenClash
+
+- Source path: `packages/openclash-enhanced`
+- Purpose:
+  - reserved for future OpenClash enhancement work
+
 ### Current Focus
 
-The SSR Plus+ enhancement work currently includes:
+The ShadowsocksR Plus enhancement work currently includes:
 
 - improved LuCI status and control UI
 - safer async apply and restart flow

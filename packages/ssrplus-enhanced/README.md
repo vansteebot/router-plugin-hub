@@ -1,6 +1,6 @@
-# SSR Plus+ Enhanced
+# ShadowsocksR Plus Enhanced
 
-Enhanced SSR Plus+ package sources for GL.iNet/OpenWrt-style routers.
+Enhanced ShadowsocksR Plus package sources for GL.iNet/OpenWrt-style routers.
 
 ## Included Work
 
@@ -28,4 +28,4 @@ Enhanced SSR Plus+ package sources for GL.iNet/OpenWrt-style routers.
 
 ## Notes
 
-This folder contains source and packaging assets. Large binary release artifacts should be attached to GitHub Releases instead of being committed into git history.
+This folder contains source and packaging assets for the enhanced ShadowsocksR Plus package. Large binary release artifacts should be attached to GitHub Releases instead of being committed into git history.
