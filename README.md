@@ -16,6 +16,32 @@ This repository is the umbrella home for:
 
 ---
 
+## Download and Install
+
+### Latest Release
+
+- Release page: [GitHub Releases](https://github.com/LanceLeeA/router-plugin-hub/releases)
+- Current package: [SSR Plus+ Enhanced 20260404v4](https://github.com/LanceLeeA/router-plugin-hub/releases/tag/ssrplus-enhanced-20260404v4)
+- Direct installer: [ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260404v4.run](https://github.com/LanceLeeA/router-plugin-hub/releases/download/ssrplus-enhanced-20260404v4/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260404v4.run)
+
+### iStore Installation
+
+For compatible soft-router environments:
+
+1. Download the `.run` package from GitHub Releases.
+2. Open `iStore` on the router.
+3. Upload the `.run` package manually.
+4. Install it directly from iStore.
+
+### 中文快速说明
+
+- `.run` 安装包请从 [GitHub Releases](https://github.com/LanceLeeA/router-plugin-hub/releases) 下载
+- 对于兼容的软路由环境，可在 `iStore` 中直接上传并安装
+- 当前推荐安装包：
+  [ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260404v4.run](https://github.com/LanceLeeA/router-plugin-hub/releases/download/ssrplus-enhanced-20260404v4/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260404v4.run)
+
+---
+
 ## 中文简介
 
 `Router Plugin Hub` 是一个面向路由器插件增强开发的总仓库，用来统一管理插件源码、打包脚本、发布说明和可安装文件。
