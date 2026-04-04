@@ -1,0 +1,324 @@
+<script type="text/javascript">//<![CDATA[
+	var ssrImportUrl = '<%=url([[admin]], [[services]], [[shadowsocksr]], [[import_ss]])%>';
+	var ssrStatusInfoUrl = '<%=url([[admin]], [[services]], [[shadowsocksr]], [[status_info]])%>';
+	var ssrNoticePendingKey = 'ssrplus_notice_pending';
+	var ssrNoticeSeenKey = 'ssrplus_notice_seen';
+	var ssrTerminalPhases = {
+		done: true,
+		verify_warn: true,
+		disabled: true,
+		probe: true,
+		process: true,
+		dns: true,
+		plugin: true,
+		config: true,
+		import: true,
+		restart_failed: true,
+		busy: true,
+		error: true,
+		unknown: true
+	};
+
+	function ssrServerToolsEscape(text) {
+		if (text === null || text === undefined) {
+			return '';
+		}
+		return String(text)
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/\"/g, '&quot;');
+	}
+
+	function ssrServerToolsLevel(data) {
+		if (!data) {
+			return 'info';
+		}
+		if (data.phase === 'done' || data.phase === 'disabled') {
+			return 'success';
+		}
+		if (data.phase === 'queued' || data.phase === 'prepare' || data.phase === 'restart' || data.phase === 'verify_warn') {
+			return 'info';
+		}
+		if (data.ok === false && ssrTerminalPhases[data.phase]) {
+			return 'error';
+		}
+		return data.ok ? 'success' : 'info';
+	}
+
+	function ssrServerToolsBuildNotice(data) {
+		var lines = [];
+		if (data && data.message) {
+			lines.push(data.message);
+		}
+		if (data && data.phase) {
+			lines.push('当前阶段: ' + data.phase);
+		}
+		if (data && data.active) {
+			lines.push('当前节点: ' + data.active);
+		}
+		if (data && data.server) {
+			lines.push('服务器: ' + data.server + (data.port ? ':' + data.port : ''));
+		}
+		if (data && data.ip) {
+			lines.push('出口 IP: ' + data.ip);
+		}
+		if (data && data.probe_socket) {
+			lines.push('当前节点探测: ' + (data.probe_ping ? (data.probe_ping + ' ms') : '可连通'));
+		} else if (data && data.phase === 'probe') {
+			lines.push('当前节点探测: 未连通');
+		}
+		if (data && data.time) {
+			lines.push('时间: ' + data.time);
+		}
+		return lines.join('\n');
+	}
+
+	function ssrServerToolsArmNotice() {
+		sessionStorage.setItem(ssrNoticePendingKey, '1');
+		sessionStorage.removeItem(ssrNoticeSeenKey);
+	}
+
+	function ssrServerToolsMaybeNotify(data) {
+		if (sessionStorage.getItem(ssrNoticePendingKey) !== '1') {
+			return;
+		}
+		if (!data || !ssrTerminalPhases[data.phase]) {
+			return;
+		}
+		var signature = [data.phase || '', data.active || '', data.server || '', data.port || '', data.time || ''].join('|');
+		if (sessionStorage.getItem(ssrNoticeSeenKey) === signature) {
+			return;
+		}
+		sessionStorage.setItem(ssrNoticeSeenKey, signature);
+		sessionStorage.removeItem(ssrNoticePendingKey);
+		window.alert(ssrServerToolsBuildNotice(data));
+	}
+
+	function ssrServerToolsWrite(level, data) {
+		var box = document.getElementById('ssrplus_server_import_status');
+		if (!box) {
+			return;
+		}
+		var klass = 'ssrplus-server-feedback ssrplus-server-feedback-info';
+		if (level === 'success') {
+			klass = 'ssrplus-server-feedback ssrplus-server-feedback-success';
+		} else if (level === 'error') {
+			klass = 'ssrplus-server-feedback ssrplus-server-feedback-error';
+		}
+		box.className = klass;
+		var lines = [];
+		if (data && data.message) {
+			lines.push('<strong>' + ssrServerToolsEscape(data.message) + '</strong>');
+		}
+		if (data && data.active) {
+			lines.push('当前节点: ' + ssrServerToolsEscape(data.active));
+		}
+		if (data && data.server) {
+			lines.push('服务器: ' + ssrServerToolsEscape(data.server) + (data.port ? ':' + ssrServerToolsEscape(data.port) : ''));
+		}
+		if (data && data.path) {
+			lines.push('导入来源: ' + ssrServerToolsEscape(data.path));
+		}
+		if (data && data.preferred) {
+			lines.push('首选关键字: ' + ssrServerToolsEscape(data.preferred));
+		}
+		if (data && data.ip) {
+			lines.push('出口 IP: ' + ssrServerToolsEscape(data.ip));
+		}
+		if (data && data.probe_socket) {
+			lines.push('当前节点探测: ' + ssrServerToolsEscape(data.probe_ping ? (data.probe_ping + ' ms') : '可连通'));
+		} else if (data && data.phase === 'probe') {
+			lines.push('当前节点探测: 未连通');
+		}
+		if (data && data.time) {
+			lines.push('时间: ' + ssrServerToolsEscape(data.time));
+		}
+		if (data && data.output) {
+			lines.push('<details><summary>详细输出</summary><pre>' + ssrServerToolsEscape(data.output) + '</pre></details>');
+		}
+		if (!lines.length) {
+			lines.push('等待操作');
+		}
+		box.innerHTML = lines.join('<br />');
+		ssrServerToolsMaybeNotify(data);
+	}
+
+	function ssrFillTextarea(fileInput) {
+		if (!fileInput.files || !fileInput.files.length) {
+			return;
+		}
+		var reader = new FileReader();
+		reader.onload = function(evt) {
+			document.getElementById('ssrplus_bulk_payload').value = evt.target.result || '';
+			ssrServerToolsWrite('info', { message: 'TXT 已读入，可直接点击批量导入' });
+		};
+		reader.readAsText(fileInput.files[0]);
+	}
+
+	function ssrBulkImport(button) {
+		var path = document.getElementById('ssrplus_bulk_path').value || '/root/ssrplus-txt';
+		var preferred = document.getElementById('ssrplus_bulk_preferred').value || '';
+		var payload = document.getElementById('ssrplus_bulk_payload').value || '';
+		var body = new URLSearchParams();
+		body.append('path', path);
+		body.append('preferred', preferred);
+		body.append('payload', payload);
+		button.disabled = true;
+		var label = button.innerHTML;
+		button.innerHTML = '正在导入...';
+		ssrServerToolsArmNotice();
+		ssrServerToolsWrite('info', { message: '正在导入节点并在后台重建代理链路', phase: 'queued' });
+		fetch(ssrImportUrl, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+			},
+			body: body.toString(),
+			credentials: 'same-origin'
+		}).then(function(resp) {
+			return resp.json();
+		}).then(function(data) {
+			ssrServerToolsWrite(ssrServerToolsLevel(data), data);
+			if (data && data.ok) {
+				setTimeout(function() {
+					window.location.reload();
+				}, 1200);
+			}
+		}).catch(function(err) {
+			sessionStorage.removeItem(ssrNoticePendingKey);
+			ssrServerToolsWrite('error', { message: '导入请求失败: ' + err });
+		}).finally(function() {
+			button.disabled = false;
+			button.innerHTML = label;
+		});
+		return false;
+	}
+
+	function ssrBindServerApplyButtons() {
+		var selectors = [
+			'input.cbi-button-apply',
+			'button.cbi-button-apply',
+			'input.cbi-button-save',
+			'button.cbi-button-save'
+		];
+		selectors.forEach(function(selector) {
+			document.querySelectorAll(selector).forEach(function(button) {
+				if (button.getAttribute('data-ssrplus-bound') === '1') {
+					return;
+				}
+				button.setAttribute('data-ssrplus-bound', '1');
+				button.addEventListener('click', function() {
+					ssrServerToolsArmNotice();
+					ssrServerToolsWrite('info', {
+						message: '配置已保存，后台正在生效',
+						phase: 'queued'
+					});
+				});
+			});
+		});
+	}
+
+	function ssrPollServerStatus() {
+		XHR.get(ssrStatusInfoUrl, null, function(x, data) {
+			if (x && x.status === 200 && data) {
+				ssrServerToolsWrite(ssrServerToolsLevel(data), data);
+			}
+		});
+	}
+
+	document.addEventListener('DOMContentLoaded', function() {
+		ssrBindServerApplyButtons();
+		ssrServerToolsWrite('info', { message: '支持上传 txt、粘贴多条 ss://，或直接读取 /root/ssrplus-txt 目录' });
+		ssrPollServerStatus();
+		XHR.poll(4, ssrStatusInfoUrl, null, function(x, data) {
+			if (x && x.status === 200 && data) {
+				ssrServerToolsWrite(ssrServerToolsLevel(data), data);
+			}
+		});
+	});
+//]]></script>
+
+<style type="text/css">
+	.ssrplus-server-tools .cbi-value-field textarea {
+		width: 100%;
+		min-height: 180px;
+	}
+	.ssrplus-server-tools .cbi-value-field input[type="text"] {
+		width: 100%;
+		max-width: 560px;
+	}
+	.ssrplus-server-tools-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 10px;
+		align-items: center;
+		margin-top: 10px;
+	}
+	.ssrplus-server-feedback {
+		margin-top: 12px;
+		padding: 12px 14px;
+		border-radius: 6px;
+		line-height: 1.6;
+	}
+	.ssrplus-server-feedback pre {
+		margin-top: 8px;
+		max-height: 180px;
+		overflow: auto;
+		white-space: pre-wrap;
+		word-break: break-all;
+	}
+	.ssrplus-server-feedback-info {
+		background: #f4f8ff;
+		border: 1px solid #cfe1ff;
+		color: #1f4f96;
+	}
+	.ssrplus-server-feedback-success {
+		background: #effaf1;
+		border: 1px solid #b7e0c0;
+		color: #246b31;
+	}
+	.ssrplus-server-feedback-error {
+		background: #fff3f3;
+		border: 1px solid #f2c3c3;
+		color: #9a2c2c;
+	}
+</style>
+
+<fieldset class="cbi-section ssrplus-server-tools">
+	<legend>SS 批量导入</legend>
+	<div class="cbi-value">
+		<label class="cbi-value-title">读取目录/文件</label>
+		<div class="cbi-value-field">
+			<input id="ssrplus_bulk_path" type="text" value="/root/ssrplus-txt" />
+			<div class="cbi-value-description">可以填一个 txt 文件路径，也可以填一个目录。目录里的 .txt / .list 文件都会被读取。</div>
+		</div>
+	</div>
+	<div class="cbi-value">
+		<label class="cbi-value-title">上传 TXT</label>
+		<div class="cbi-value-field">
+			<input type="file" accept=".txt,.list,text/plain" onchange="ssrFillTextarea(this)" />
+			<div class="cbi-value-description">上传后会自动读入下面的文本框，允许继续编辑后再导入。</div>
+		</div>
+	</div>
+	<div class="cbi-value">
+		<label class="cbi-value-title">首选节点关键字</label>
+		<div class="cbi-value-field">
+			<input id="ssrplus_bulk_preferred" type="text" placeholder="例如 HK8 Annual 2" />
+			<div class="cbi-value-description">导入完成后会优先把包含该关键字的节点设为当前主节点。</div>
+		</div>
+	</div>
+	<div class="cbi-value">
+		<label class="cbi-value-title">直接粘贴 ss:// 节点</label>
+		<div class="cbi-value-field">
+			<textarea id="ssrplus_bulk_payload" placeholder="支持直接粘贴多条 ss://，每行一条。留空时按上面的路径读取。"></textarea>
+		</div>
+	</div>
+	<div class="ssrplus-server-tools-actions">
+		<button class="cbi-button cbi-button-add" type="button" onclick="return ssrBulkImport(this);">批量解析 / 覆盖导入</button>
+		<span>导入后会在后台重建代理链路，并保持当前状态栏同步更新。</span>
+	</div>
+	<div id="ssrplus_server_import_status" class="ssrplus-server-feedback ssrplus-server-feedback-info">
+		等待操作
+	</div>
+</fieldset>

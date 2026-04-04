@@ -1,0 +1,80 @@
+, global, "switch_try_count", "0")
+		end
+		if not uci:get("shadowsocksr", global, "switch_window_seconds") or uci:get("shadowsocksr", global, "switch_window_seconds") == "" then
+			uci:set("shadowsocksr", global, "switch_window_seconds", "300")
+		end
+		if not uci:get("shadowsocksr", global, "switch_window_failures") or uci:get("shadowsocksr", global, "switch_window_failures") == "" then
+			uci:set("shadowsocksr", global, "switch_window_failures", "10")
+		end
+		if not uci:get("shadowsocksr", global, "switch_cooldown") or uci:get("shadowsocksr", global, "switch_cooldown") == "" then
+			uci:set("shadowsocksr", global, "switch_cooldown", "300")
+		end
+		if not uci:get("shadowsocksr", global, "switch_probe_host") or uci:get("shadowsocksr", global, "switch_probe_host") == "" then
+			uci:set("shadowsocksr", global, "switch_probe_host", "www.google.com")
+		end
+		if not uci:get("shadowsocksr", global, "switch_probe_port") or uci:get("shadowsocksr", global, "switch_probe_port") == "" then
+			uci:set("shadowsocksr", global, "switch_probe_port", "80")
+		end
+	end
+	if access then
+		uci:set("shadowsocksr", access, "router_proxy", "1")
+	end
+	if dnsmasq then
+		uci:set("dhcp", dnsmasq, "filter_aaaa", "1")
+	end
+	uci:commit("shadowsocksr")
+	uci:commit("dhcp")
+end
+
+local function ensure_client_reservation(hostname, mac, ip)
+	local found = nil
+	uci:foreach("dhcp", "host", function(s)
+		local section_mac = (s.mac or ""):lower()
+		local target_mac = tostring(mac or ""):lower()
+		if section_mac == target_mac or s.ip == ip or s.name == hostname then
+			found = s[".name"]
+		end
+	end)
+	if not found then
+		found = uci:add("dhcp", "host")
+	end
+	uci:set("dhcp", found, "name", hostname)
+	uci:set("dhcp", found, "mac", mac)
+	uci:set("dhcp", found, "ip", ip)
+	uci:set("dhcp", found, "dns", "1")
+	uci:commit("dhcp")
+end
+
+local function wait_for_processes(active)
+	if not active.section or active.section == "nil" then
+		return true, "disabled", "主代理已禁用"
+	end
+	local helper = dns_helper_name(uci:get_first("shadowsocksr", "global", "pdnsd_enable", "0"))
+	local need_obfs = requires_obfs(active.section)
+	local deadline = os.time() + 25
+	while os.time() <= deadline do
+		local has_redir = is_running("ss-redir")
+		local has_dns = (not helper or helper == "") or is_running(helper)
+		local has_obfs = (not need_obfs) or is_running("obfs-local")
+		if has_redir and has_dns and has_obfs then
+			return true, "ready", "代理链路已重建"
+		end
+		os.execute("sleep 1")
+	end
+	if not is_running("ss-redir") then
+		return false, "process", "ss-redir 未成功启动"
+	end
+	if helper and helper ~= "" and not is_running(helper) then
+		return false, "dns", helper .. " 未成功启动"
+	end
+	if need_obfs and not is_running("obfs-local") then
+		return false, "plugin", "obfs-local 未成功启动"
+	end
+	return false, "process", "代理进程未完全就绪"
+end
+
+local function probe_active_node(active)
+	local result = {
+		target = active.server or "",
+		socket = false,
+		pi

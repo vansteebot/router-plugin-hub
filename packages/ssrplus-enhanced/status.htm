@@ -1,0 +1,583 @@
+<script type="text/javascript">//<![CDATA[
+	var ssrStatusUrl = '<%=url([[admin]], [[services]], [[shadowsocksr]], [[status_info]])%>';
+	var ssrRebuildUrl = '<%=url([[admin]], [[services]], [[shadowsocksr]], [[flush]])%>';
+	var ssrHardRebuildUrl = '<%=url([[admin]], [[services]], [[shadowsocksr]], [[flush_hard]])%>';
+	var ssrToggleIpv6Url = '<%=url([[admin]], [[services]], [[shadowsocksr]], [[toggle_ipv6]])%>';
+	var ssrNoticePendingKey = 'ssrplus_notice_pending';
+	var ssrNoticeSeenKey = 'ssrplus_notice_seen';
+	var ssrTerminalPhases = {
+		done: true,
+		verify_warn: true,
+		disabled: true,
+		process: true,
+		error: true,
+		restart_failed: true
+	};
+	var ssrBusyPhases = {
+		queued: true,
+		prepare: true,
+		restart: true,
+		retry: true,
+		cleanup: true,
+		busy: true
+	};
+	window.__ssrLastStatusData = null;
+
+	function ssrEscapeHtml(text) {
+		if (text === null || text === undefined) {
+			return '';
+		}
+		return String(text)
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;');
+	}
+
+	function ssrSetBusy(button, busy, text) {
+		if (!button) {
+			return;
+		}
+		if (busy) {
+			button.setAttribute('data-label', button.innerHTML);
+			button.innerHTML = text || '正在执行...';
+			button.disabled = true;
+			return;
+		}
+		button.innerHTML = button.getAttribute('data-label') || button.innerHTML;
+		button.disabled = false;
+	}
+
+	function ssrIsBusy(data) {
+		return !!(data && data.phase && ssrBusyPhases[data.phase]);
+	}
+
+	function ssrLockInteractiveControls(busy) {
+		var selectors = [
+			'.ssrplus-toolbar .cbi-button',
+			'.cbi-page-actions .cbi-button',
+			'input.cbi-button-apply',
+			'button.cbi-button-apply',
+			'input.cbi-button-save',
+			'button.cbi-button-save',
+			'input.cbi-button-positive',
+			'button.cbi-button-positive'
+		];
+		var buttons = document.querySelectorAll(selectors.join(','));
+		buttons.forEach(function(button) {
+			if (!button) {
+				return;
+			}
+			var clickedBusyButton = button.closest('.ssrplus-toolbar') && button.hasAttribute('data-label');
+			if (busy) {
+				if (!clickedBusyButton) {
+					button.disabled = true;
+				}
+				button.classList.add('ssrplus-disabled-control');
+			} else {
+				if (!clickedBusyButton) {
+					button.disabled = false;
+				}
+				button.classList.remove('ssrplus-disabled-control');
+			}
+		});
+	}
+
+	function ssrFeedbackLevel(data) {
+		if (!data) {
+			return 'info';
+		}
+		if (data.phase === 'done' || data.phase === 'disabled') {
+			return 'success';
+		}
+		if (data.phase === 'queued' || data.phase === 'prepare' || data.phase === 'restart' || data.phase === 'retry' || data.phase === 'cleanup' || data.phase === 'busy') {
+			return 'info';
+		}
+		if (data.phase === 'verify_warn') {
+			return 'warn';
+		}
+		if (data.ok === false) {
+			return 'error';
+		}
+		return data.ok ? 'success' : 'info';
+	}
+
+	function ssrBuildAutoSwitchSummary(data) {
+		if (!data || !data.auto_switch_enabled) {
+			return '已关闭';
+		}
+		var parts = ['已开启'];
+		if (data.auto_switch_candidates) {
+			parts.push('候选 ' + data.auto_switch_candidates);
+		}
+		if (typeof data.auto_switch_fail_count !== 'undefined') {
+			parts.push('连续 ' + data.auto_switch_fail_count + '/' + (data.auto_switch_threshold || 0));
+		}
+		if (typeof data.auto_switch_window_fail_count !== 'undefined') {
+			parts.push('窗口 ' + data.auto_switch_window_fail_count + '/' + (data.auto_switch_window_threshold || 0) + ' (' + (data.auto_switch_window_seconds || 0) + 's)');
+		}
+		if (data.auto_switch_last_reason) {
+			parts.push('上次 ' + data.auto_switch_last_reason);
+		}
+		return parts.join(' / ');
+	}
+
+	function ssrBuildProbeSummary(data) {
+		if (data && data.probe_socket) {
+			return data.probe_ping ? (data.probe_ping + ' ms') : '可连通';
+		}
+		if (data && data.phase === 'probe') {
+			return '未连通';
+		}
+		return '-';
+	}
+
+	function ssrBuildIpv6Summary(data) {
+		if (!data) {
+			return '-';
+		}
+		if (data.ipv6_status) {
+			return data.ipv6_status;
+		}
+		var parts = [];
+		if (data.ipv6_mode_label) {
+			parts.push(data.ipv6_mode_label);
+		}
+		parts.push(data.ipv6_enabled ? '系统 IPv6 已开启' : '系统 IPv6 已关闭');
+		parts.push(data.ipv6_filter_aaaa ? 'AAAA 过滤开启' : 'AAAA 过滤关闭');
+		return parts.join(' / ');
+	}
+
+	function ssrBuildNoticeText(data) {
+		var lines = [];
+		if (data && data.message) {
+			lines.push(data.message);
+		}
+		if (data && data.phase) {
+			lines.push('当前阶段: ' + data.phase);
+		}
+		if (data && data.active) {
+			lines.push('当前节点: ' + data.active);
+		}
+		if (data && data.server) {
+			lines.push('服务器: ' + data.server + (data.port ? ':' + data.port : ''));
+		}
+		if (data && data.ip) {
+			lines.push('代理出口 IP: ' + data.ip);
+		}
+		if (data && data.direct_ip) {
+			lines.push('直连公网 IP: ' + data.direct_ip);
+		}
+		if (data) {
+			lines.push('自动切换: ' + ssrBuildAutoSwitchSummary(data));
+			lines.push('当前节点探测: ' + ssrBuildProbeSummary(data));
+		}
+		if (data && data.time) {
+			lines.push('时间: ' + data.time);
+		}
+		return lines.join('\n');
+	}
+
+	function ssrArmNotice() {
+		sessionStorage.setItem(ssrNoticePendingKey, '1');
+		sessionStorage.removeItem(ssrNoticeSeenKey);
+	}
+
+	function ssrClearNotice() {
+		sessionStorage.removeItem(ssrNoticePendingKey);
+		sessionStorage.removeItem(ssrNoticeSeenKey);
+	}
+
+	function ssrMaybeNotify(data) {
+		if (sessionStorage.getItem(ssrNoticePendingKey) !== '1') {
+			return;
+		}
+		if (!data || !ssrTerminalPhases[data.phase]) {
+			return;
+		}
+		var text = ssrBuildNoticeText(data);
+		if (sessionStorage.getItem(ssrNoticeSeenKey) !== text) {
+			alert(text);
+			sessionStorage.setItem(ssrNoticeSeenKey, text);
+		}
+		ssrClearNotice();
+	}
+
+	function ssrSetModeActive(mode) {
+		['off', 'auto', 'manual'].forEach(function(name) {
+			var button = document.getElementById('ssrplus_ipv6_' + name + '_btn');
+			if (!button) {
+				return;
+			}
+			if (name === mode) {
+				button.classList.add('ssrplus-mode-active');
+			} else {
+				button.classList.remove('ssrplus-mode-active');
+			}
+		});
+	}
+
+	function ssrWriteFeedback(level, data) {
+		var panel = document.getElementById('ssrplus_action_status');
+		if (!panel) {
+			return;
+		}
+
+		panel.className = 'ssrplus-strip ssrplus-strip-' + (level || 'info');
+
+		var title = document.getElementById('ssrplus_feedback_title');
+		var summary = document.getElementById('ssrplus_feedback_summary');
+		var badge = document.getElementById('ssrplus_feedback_badge');
+		var probe = document.getElementById('ssrplus_feedback_probe');
+		var autoswitch = document.getElementById('ssrplus_feedback_autoswitch');
+		var directIp = document.getElementById('ssrplus_feedback_direct_ip');
+		var ipv6 = document.getElementById('ssrplus_feedback_ipv6');
+		var time = document.getElementById('ssrplus_feedback_time');
+
+		if (title) {
+			title.innerHTML = ssrEscapeHtml((data && data.message) || '等待状态更新');
+		}
+		if (summary) {
+			var text = '当前阶段: ' + ((data && data.phase) || 'idle');
+			if (data && data.time) {
+				text += ' · 时间: ' + data.time;
+			}
+			summary.innerHTML = ssrEscapeHtml(text);
+		}
+		if (badge) {
+			badge.innerHTML = ssrEscapeHtml((data && data.phase) || 'idle');
+		}
+		if (probe) {
+			probe.innerHTML = ssrEscapeHtml(ssrBuildProbeSummary(data));
+		}
+		if (autoswitch) {
+			autoswitch.innerHTML = ssrEscapeHtml(ssrBuildAutoSwitchSummary(data));
+		}
+		if (directIp) {
+			directIp.innerHTML = ssrEscapeHtml((data && data.direct_ip) || '-');
+		}
+		if (ipv6) {
+			ipv6.innerHTML = ssrEscapeHtml(ssrBuildIpv6Summary(data));
+		}
+		if (time) {
+			time.innerHTML = ssrEscapeHtml((data && data.time) || '-');
+		}
+	}
+
+	function ssrUpdateStatus(data) {
+		var status = document.getElementById('shadowsocksr_status');
+		var currentNode = document.getElementById('ssrplus_current_node');
+		var currentServer = document.getElementById('ssrplus_current_server');
+		var currentPhase = document.getElementById('ssrplus_current_phase');
+		var currentIp = document.getElementById('ssrplus_current_ip');
+
+		if (status) {
+			if (data && data.disabled) {
+				status.innerHTML = '<em><b style="color:#7a7a7a">ShadowsocksR Plus+ 主代理已停用</b></em>';
+			} else if (data && data.running) {
+				status.innerHTML = '<em><b style="color:green">ShadowsocksR Plus+ 运行中</b></em>';
+			} else {
+				status.innerHTML = '<em><b style="color:red">ShadowsocksR Plus+ 未运行</b></em>';
+			}
+		}
+
+		if (currentNode) {
+			currentNode.innerHTML = ssrEscapeHtml((data && data.active) || '未选择');
+		}
+		if (currentServer) {
+			var serverText = (data && data.server) || '-';
+			if (data && data.port) {
+				serverText += ':' + data.port;
+			}
+			currentServer.innerHTML = ssrEscapeHtml(serverText);
+		}
+		if (currentPhase) {
+			currentPhase.innerHTML = ssrEscapeHtml((data && data.phase) || 'idle');
+		}
+		if (currentIp) {
+			currentIp.innerHTML = ssrEscapeHtml((data && data.ip) || '-');
+		}
+
+		if (data && typeof data.active_section !== 'undefined') {
+			document.querySelectorAll('select').forEach(function(select) {
+				var name = select.getAttribute('name') || '';
+				if (name.indexOf('global_server') === -1) {
+					return;
+				}
+				for (var i = 0; i < select.options.length; i += 1) {
+					if (select.options[i].value === data.active_section) {
+						select.value = data.active_section;
+						return;
+					}
+				}
+			});
+		}
+
+		ssrSetModeActive((data && data.ipv6_mode) || 'off');
+		ssrWriteFeedback(ssrFeedbackLevel(data), data || { message: '等待状态更新' });
+		window.__ssrLastStatusData = data || null;
+		ssrLockInteractiveControls(ssrIsBusy(data));
+		ssrMaybeNotify(data);
+	}
+
+	function ssrRefreshStatus() {
+		XHR.get(ssrStatusUrl, null, function(x, data) {
+			if (x && x.status === 200 && data) {
+				ssrUpdateStatus(data);
+			}
+		});
+	}
+
+	function ssrPostAction(url, payload, button, busyText) {
+		if (ssrIsBusy(window.__ssrLastStatusData)) {
+			ssrWriteFeedback('info', {
+				message: '后台任务仍在运行，请等待当前任务完成',
+				phase: (window.__ssrLastStatusData && window.__ssrLastStatusData.phase) || 'busy'
+			});
+			return false;
+		}
+		ssrArmNotice();
+		ssrSetBusy(button, true, busyText);
+		ssrLockInteractiveControls(true);
+		XHR.post(url, payload || {}, function(x, data) {
+			ssrSetBusy(button, false);
+			if (x && x.status === 200 && data) {
+				ssrUpdateStatus(data);
+				return;
+			}
+			ssrWriteFeedback('error', { message: '操作失败，请稍后重试', phase: 'error' });
+			ssrLockInteractiveControls(false);
+		});
+		return false;
+	}
+
+	function ssrRebuild(button) {
+		return ssrPostAction(ssrRebuildUrl, {}, button, '正在后台重建...');
+	}
+
+	function ssrHardRebuild(button) {
+		return ssrPostAction(ssrHardRebuildUrl, {}, button, '正在彻底清理...');
+	}
+
+	function ssrSetIpv6Mode(button, mode) {
+		var labels = {
+			off: '正在关闭 IPv6...',
+			auto: '正在切换为自动 IPv6...',
+			manual: '正在开启 IPv6...'
+		};
+		return ssrPostAction(ssrToggleIpv6Url, { mode: mode }, button, labels[mode] || '正在更新 IPv6...');
+	}
+
+	window.setInterval(ssrRefreshStatus, 3000);
+	window.setTimeout(ssrRefreshStatus, 200);
+//]]></script>
+
+<style type="text/css">
+	.ssrplus-card-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+		gap: 12px;
+		margin: 10px 0 12px;
+	}
+
+	.ssrplus-card {
+		border: 1px solid #e8edf5;
+		border-radius: 12px;
+		background: #fff;
+		padding: 12px 14px;
+		min-height: 76px;
+	}
+
+	.ssrplus-card-label {
+		display: block;
+		font-size: 12px;
+		color: #64748b;
+		margin-bottom: 6px;
+	}
+
+	.ssrplus-card-value {
+		font-size: 14px;
+		line-height: 1.5;
+		color: #12203a;
+		word-break: break-all;
+	}
+
+	.ssrplus-toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 10px;
+		align-items: center;
+		margin: 4px 0 12px;
+	}
+
+	.ssrplus-toolbar-group {
+		display: inline-flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 8px;
+		padding: 8px 10px;
+		border: 1px solid #e8edf5;
+		border-radius: 12px;
+		background: #fafcff;
+	}
+
+	.ssrplus-toolbar-caption {
+		font-size: 12px;
+		color: #64748b;
+		margin-right: 2px;
+	}
+
+	.ssrplus-mode-active {
+		box-shadow: inset 0 0 0 2px rgba(79, 109, 245, 0.25);
+	}
+
+	.ssrplus-disabled-control {
+		opacity: 0.65;
+		pointer-events: none;
+	}
+
+	.ssrplus-strip {
+		border: 1px solid #dfe7f5;
+		border-radius: 12px;
+		padding: 14px 16px;
+		background: #f8fbff;
+	}
+
+	.ssrplus-strip-success {
+		border-color: #b7efc7;
+		background: #f3fff5;
+	}
+
+	.ssrplus-strip-info,
+	.ssrplus-strip-warn {
+		border-color: #cfe0ff;
+		background: #f6faff;
+	}
+
+	.ssrplus-strip-error {
+		border-color: #ffc9c9;
+		background: #fff5f5;
+	}
+
+	.ssrplus-strip-head {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 12px;
+	}
+
+	.ssrplus-strip-title {
+		font-size: 14px;
+		font-weight: 600;
+		color: #16325c;
+		line-height: 1.5;
+	}
+
+	.ssrplus-strip-summary {
+		margin-top: 4px;
+		font-size: 12px;
+		color: #5f728f;
+	}
+
+	.ssrplus-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		height: 28px;
+		padding: 0 10px;
+		border-radius: 999px;
+		background: rgba(79, 109, 245, 0.1);
+		color: #3245a8;
+		font-size: 12px;
+		white-space: nowrap;
+	}
+
+	.ssrplus-chip-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		margin-top: 12px;
+	}
+
+	.ssrplus-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 6px 10px;
+		border-radius: 999px;
+		background: rgba(255, 255, 255, 0.88);
+		border: 1px solid rgba(95, 114, 143, 0.18);
+		font-size: 12px;
+		color: #4a5f82;
+		max-width: 100%;
+	}
+
+	.ssrplus-chip-value {
+		font-weight: 600;
+		color: #12203a;
+		word-break: break-all;
+	}
+
+	.ssrplus-tip {
+		margin: 12px 0 0;
+		font-size: 12px;
+		color: #596b86;
+	}
+</style>
+
+<div class="cbi-section" id="ssrplus_status_panel">
+	<p id="shadowsocksr_status">
+		<em><b style="color:#7a7a7a">ShadowsocksR Plus+ 状态加载中</b></em>
+	</p>
+
+	<div class="ssrplus-card-grid">
+		<div class="ssrplus-card">
+			<span class="ssrplus-card-label">当前节点</span>
+			<div class="ssrplus-card-value" id="ssrplus_current_node">-</div>
+		</div>
+		<div class="ssrplus-card">
+			<span class="ssrplus-card-label">服务器</span>
+			<div class="ssrplus-card-value" id="ssrplus_current_server">-</div>
+		</div>
+		<div class="ssrplus-card">
+			<span class="ssrplus-card-label">当前阶段</span>
+			<div class="ssrplus-card-value" id="ssrplus_current_phase">-</div>
+		</div>
+		<div class="ssrplus-card">
+			<span class="ssrplus-card-label">代理出口 IP</span>
+			<div class="ssrplus-card-value" id="ssrplus_current_ip">-</div>
+		</div>
+	</div>
+
+	<div class="ssrplus-toolbar">
+		<input type="button" class="cbi-button cbi-button-reload" value="重新生效网络" onclick="return ssrRebuild(this)" />
+		<input type="button" class="cbi-button cbi-button-negative" value="彻底清理并重启" onclick="return ssrHardRebuild(this)" />
+		<div class="ssrplus-toolbar-group">
+			<span class="ssrplus-toolbar-caption">IPv6 策略</span>
+			<input id="ssrplus_ipv6_off_btn" type="button" class="cbi-button" value="关闭" onclick="return ssrSetIpv6Mode(this, 'off')" />
+			<input id="ssrplus_ipv6_auto_btn" type="button" class="cbi-button" value="自动" onclick="return ssrSetIpv6Mode(this, 'auto')" />
+			<input id="ssrplus_ipv6_manual_btn" type="button" class="cbi-button" value="手动开启" onclick="return ssrSetIpv6Mode(this, 'manual')" />
+		</div>
+	</div>
+
+	<div id="ssrplus_action_status" class="ssrplus-strip ssrplus-strip-info">
+		<div class="ssrplus-strip-head">
+			<div>
+				<div id="ssrplus_feedback_title" class="ssrplus-strip-title">等待状态更新</div>
+				<div id="ssrplus_feedback_summary" class="ssrplus-strip-summary">后台状态、出口 IP 和自动切换信息会在这里刷新。</div>
+			</div>
+			<span id="ssrplus_feedback_badge" class="ssrplus-badge">idle</span>
+		</div>
+		<div class="ssrplus-chip-row">
+			<span class="ssrplus-chip">当前节点探测 <span id="ssrplus_feedback_probe" class="ssrplus-chip-value">-</span></span>
+			<span class="ssrplus-chip">自动切换 <span id="ssrplus_feedback_autoswitch" class="ssrplus-chip-value">-</span></span>
+			<span class="ssrplus-chip">直连公网 IP <span id="ssrplus_feedback_direct_ip" class="ssrplus-chip-value">-</span></span>
+			<span class="ssrplus-chip">IPv6 状态 <span id="ssrplus_feedback_ipv6" class="ssrplus-chip-value">-</span></span>
+			<span class="ssrplus-chip">时间 <span id="ssrplus_feedback_time" class="ssrplus-chip-value">-</span></span>
+		</div>
+	</div>
+
+	<p class="ssrplus-tip">
+		说明：如果当前链路异常，优先使用“重新生效网络”；如果怀疑有残留进程或状态冲突，再使用“彻底清理并重启”。开启 IPv6 目前只控制系统 IPv6 状态，仍会保持 AAAA 过滤以避免直连泄露。
+	</p>
+</div>

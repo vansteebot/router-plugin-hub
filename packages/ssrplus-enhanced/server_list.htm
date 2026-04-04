@@ -1,0 +1,426 @@
+<%#
+ Copyright 2018-2019 Lienol <lawlienol@gmail.com>
+ Licensed to the public under the Apache License 2.0.
+-%>
+<fieldset id="ssrplus_ping_tools" class="cbi-section ssrplus-ping-tools">
+	<legend>节点测速</legend>
+	<div class="ssrplus-ping-toolbar">
+		<button id="ssrplus_ping_run" class="cbi-button cbi-button-action" type="button">批量测速</button>
+		<button id="ssrplus_ping_stop" class="cbi-button cbi-button-reset" type="button">停止测速</button>
+		<span id="ssrplus_ping_status" class="ssrplus-ping-status ssrplus-ping-status-info">点击“批量测速”后再刷新所有节点延迟；连接测试为 ok 代表端口可连。</span>
+	</div>
+	<div class="cbi-value-description">
+		“可连通”表示节点端口可连，但暂时没有测出稳定毫秒值；这不等于节点不可用。
+	</div>
+	<div class="cbi-value-description">
+		“自动切换”列里勾选的节点，才会作为受控自动切换的候选节点。
+	</div>
+</fieldset>
+
+<style type="text/css">
+	.ssrplus-ping-tools {
+		margin-top: 14px;
+	}
+	.ssrplus-ping-toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 10px;
+		align-items: center;
+	}
+	.ssrplus-ping-status {
+		display: inline-flex;
+		align-items: center;
+		min-height: 34px;
+		padding: 0 12px;
+		border-radius: 6px;
+		font-size: 12px;
+		line-height: 1.6;
+	}
+	.ssrplus-ping-status-info {
+		color: #1f4f96;
+		background: #f4f8ff;
+		border: 1px solid #cfe1ff;
+	}
+	.ssrplus-ping-status-success {
+		color: #246b31;
+		background: #effaf1;
+		border: 1px solid #b7e0c0;
+	}
+	.ssrplus-ping-status-warn {
+		color: #8a5a00;
+		background: #fff8e6;
+		border: 1px solid #f0d796;
+	}
+	.ssrplus-ping-status-error {
+		color: #9a2c2c;
+		background: #fff3f3;
+		border: 1px solid #f2c3c3;
+	}
+	.ssrplus-disabled-control {
+		opacity: 0.6;
+		cursor: not-allowed !important;
+	}
+	tr[draggable="true"] {
+		cursor: move;
+		user-select: none;
+	}
+</style>
+
+<script type="text/javascript">
+//<![CDATA[
+window.addEventListener('load', function () {
+	const doms = Array.prototype.slice.call(document.getElementsByClassName('pingtime'));
+	const ports = Array.prototype.slice.call(document.getElementsByClassName('socket-connected'));
+	const transports = Array.prototype.slice.call(document.getElementsByClassName('transport'));
+	const wsPaths = Array.prototype.slice.call(document.getElementsByClassName('wsPath'));
+	const tlss = Array.prototype.slice.call(document.getElementsByClassName('tls'));
+	const runButton = document.getElementById('ssrplus_ping_run');
+	const stopButton = document.getElementById('ssrplus_ping_stop');
+	const statusBox = document.getElementById('ssrplus_ping_status');
+	const pingUrl = '<%=luci.dispatcher.build_url("admin/services/shadowsocksr/ping")%>';
+	const statusUrl = '<%=luci.dispatcher.build_url("admin/services/shadowsocksr/status_info")%>';
+	const state = {
+		running: false,
+		cancelled: false,
+		finished: 0,
+		active: 0,
+		nextIndex: 0,
+		total: doms.length,
+		concurrency: 2
+	};
+	let applyLocked = false;
+
+	function setStatus(text, type) {
+		if (!statusBox) {
+			return;
+		}
+		statusBox.textContent = text;
+		statusBox.className = 'ssrplus-ping-status ssrplus-ping-status-' + (type || 'info');
+	}
+
+	function setButtons() {
+		if (runButton) {
+			runButton.disabled = state.running || applyLocked;
+		}
+		if (stopButton) {
+			stopButton.disabled = !state.running || applyLocked;
+		}
+	}
+
+	function lockApplyControls(busy) {
+		const selectors = [
+			'input.cbi-button-apply',
+			'button.cbi-button-apply',
+			'input.cbi-button-save',
+			'button.cbi-button-save',
+			'input.cbi-button-positive',
+			'button.cbi-button-positive'
+		];
+		document.querySelectorAll(selectors.join(',')).forEach(function(button) {
+			if (!button) {
+				return;
+			}
+			button.disabled = busy;
+			button.classList.toggle('ssrplus-disabled-control', busy);
+		});
+		setButtons();
+	}
+
+	function statusIsBusy(data) {
+		if (!data || !data.phase) {
+			return false;
+		}
+		return ['queued', 'prepare', 'restart', 'retry', 'cleanup', 'busy'].indexOf(data.phase) !== -1;
+	}
+
+	function refreshApplyLock() {
+		XHR.get(statusUrl, null, function(x, data) {
+			if (!(x && x.status === 200 && data)) {
+				return;
+			}
+			applyLocked = statusIsBusy(data);
+			lockApplyControls(applyLocked);
+			if (applyLocked && !state.running) {
+				setStatus('后台正在生效，请等待当前任务完成', 'warn');
+			}
+		});
+	}
+
+	function moveToolbarNearTable() {
+		var tools = document.getElementById('ssrplus_ping_tools');
+		var sectionRoot = document.getElementById('cbi-shadowsocksr-servers');
+		var tableSection = sectionRoot ? (sectionRoot.querySelector('.cbi-section-table') || sectionRoot.querySelector('table')) : null;
+		if (tools && sectionRoot && tableSection) {
+			tableSection.parentNode.insertBefore(tools, tableSection);
+		}
+	}
+
+	function setPending(index) {
+		const dom = doms[index];
+		const port = ports[index];
+		if (dom) {
+			dom.innerHTML = '<font style="color:#0072c3">测速中</font>';
+		}
+		if (port) {
+			port.innerHTML = '<font style="color:#0072c3">connect</font>';
+		}
+	}
+
+	function renderResult(index, result) {
+		const dom = doms[index];
+		const port = ports[index];
+		const numericPing = result && result.ping !== undefined && result.ping !== null && result.ping !== ''
+			? Number(result.ping)
+			: NaN;
+		const hasPing = !Number.isNaN(numericPing) && numericPing > 0;
+		if (!dom || !port) {
+			return;
+		}
+		if (hasPing) {
+			let color = '#ff0000';
+			if (numericPing < 300) color = '#ff3300';
+			if (numericPing < 200) color = '#ff7700';
+			if (numericPing < 100) color = '#249400';
+			dom.innerHTML = '<font style="color:' + color + '">' + Math.round(numericPing) + ' ms</font>';
+		} else if (result && result.socket) {
+			dom.innerHTML = '<font style="color:#249400">可连通</font>';
+		} else {
+			dom.innerHTML = '<font style="color:#ff0000">未连通</font>';
+		}
+		port.innerHTML = result && result.socket
+			? '<font style="color:#249400">ok</font>'
+			: '<font style="color:#ff0000">fail</font>';
+	}
+
+	function updateProgress(doneText, type) {
+		const suffix = ' ' + state.finished + '/' + state.total;
+		if (state.cancelled) {
+			setStatus(doneText + suffix, 'warn');
+		} else if (state.running) {
+			setStatus('正在批量测速，请稍候 ' + suffix, 'info');
+		} else {
+			setStatus(doneText + suffix, type || 'success');
+		}
+	}
+
+	function finishBatch(cancelled) {
+		state.running = false;
+		state.active = 0;
+		state.nextIndex = state.total;
+		setButtons();
+		updateProgress(cancelled ? '测速已停止，已保留当前结果' : '批量测速完成');
+	}
+
+	function pingOne(index) {
+		return new Promise(function(resolve) {
+			const dom = doms[index];
+			const port = ports[index];
+			const transport = transports[index];
+			const wsPath = wsPaths[index];
+			const tls = tlss[index];
+			if (!dom || !port || !transport || !wsPath || !tls) {
+				resolve();
+				return;
+			}
+			setPending(index);
+			XHR.get(pingUrl, {
+				index: index,
+				domain: dom.getAttribute('hint'),
+				port: port.getAttribute('hint'),
+				transport: transport.getAttribute('hint') || '',
+				wsPath: wsPath.getAttribute('hint') || '',
+				tls: tls.getAttribute('hint') || ''
+			}, function(x, result) {
+				renderResult(index, result || {});
+				resolve();
+			}, true);
+		});
+	}
+
+	function pumpQueue() {
+		while (!state.cancelled && state.active < state.concurrency && state.nextIndex < state.total) {
+			const current = state.nextIndex++;
+			state.active += 1;
+			pingOne(current).then(function() {
+				state.active -= 1;
+				state.finished += 1;
+				if (state.cancelled) {
+					if (state.active === 0) {
+						finishBatch(true);
+					}
+					return;
+				}
+				if (state.finished >= state.total) {
+					finishBatch(false);
+					return;
+				}
+				updateProgress('批量测速完成');
+				pumpQueue();
+			});
+		}
+	}
+
+	function startBatchPing(options) {
+		const opts = options || {};
+		if (state.running) {
+			return false;
+		}
+		state.running = true;
+		state.cancelled = false;
+		state.finished = 0;
+		state.active = 0;
+		state.nextIndex = 0;
+		if (opts.reset !== false) {
+			doms.forEach(function(dom) {
+				dom.innerHTML = '<font style="color:#888">未测速</font>';
+			});
+			ports.forEach(function(port) {
+				port.innerHTML = '<font style="color:#888">待检测</font>';
+			});
+		}
+		setButtons();
+		updateProgress('批量测速完成');
+		pumpQueue();
+		return false;
+	}
+
+	function stopBatchPing() {
+		if (!state.running) {
+			return false;
+		}
+		state.cancelled = true;
+		setButtons();
+		updateProgress('测速已停止，已保留当前结果', 'warn');
+		return false;
+	}
+
+	function bindApplyButtonsPausePing() {
+		document.querySelectorAll('input.cbi-button-apply, button.cbi-button-apply, input.cbi-button-save, button.cbi-button-save, input.cbi-button-positive, button.cbi-button-positive').forEach(function(button) {
+			if (button.getAttribute('data-ssrplus-ping-bound') === '1') {
+				return;
+			}
+			button.setAttribute('data-ssrplus-ping-bound', '1');
+			button.addEventListener('click', function(ev) {
+				if (applyLocked) {
+					ev.preventDefault();
+					ev.stopPropagation();
+					setStatus('后台正在生效，请等待当前任务完成', 'warn');
+					return false;
+				}
+				applyLocked = true;
+				lockApplyControls(true);
+				if (state.running) {
+					stopBatchPing();
+				}
+				setStatus('节点切换中，已暂停测速，等待后台完成重建', 'warn');
+			});
+		});
+	}
+
+	if (runButton) {
+		runButton.addEventListener('click', function() {
+			startBatchPing({ reset: true });
+		});
+	}
+
+	if (stopButton) {
+		stopButton.addEventListener('click', stopBatchPing);
+		stopButton.disabled = true;
+	}
+
+	moveToolbarNearTable();
+	bindApplyButtonsPausePing();
+	refreshApplyLock();
+	window.setInterval(refreshApplyLock, 3000);
+
+	if (doms.length > 0) {
+		setStatus('点击“批量测速”后再刷新所有节点延迟；连接测试为 ok 代表端口可连。', 'info');
+	} else {
+		setStatus('未发现可测速节点', 'warn');
+	}
+
+	function cbi_row_drop(fromId, toId, store, isToBottom) {
+		var fromNode = document.getElementById(fromId);
+		var toNode = document.getElementById(toId);
+		if (!fromNode || !toNode) return false;
+
+		var table = fromNode.parentNode;
+		while (table && table.nodeName.toLowerCase() !== 'table') {
+			table = table.parentNode;
+		}
+		if (!table) return false;
+
+		var ids = [];
+		if (isToBottom) {
+			toNode.parentNode.appendChild(fromNode);
+		} else {
+			fromNode.parentNode.insertBefore(fromNode, toNode);
+		}
+		for (var idx = 2; idx < table.rows.length; idx++) {
+			table.rows[idx].className = table.rows[idx].className.replace(
+				/cbi-rowstyle-[12]/,
+				'cbi-rowstyle-' + (1 + (idx % 2))
+			);
+			if (table.rows[idx].id && table.rows[idx].id.match(/-([^\-]+)$/)) {
+				ids.push(RegExp.$1);
+			}
+		}
+		var input = document.getElementById(store);
+		if (input) input.value = ids.join(' ');
+		return false;
+	}
+
+	function enableDragForTable(tableSelector, store) {
+		var trs = document.querySelectorAll(tableSelector + ' tr');
+		if (!trs || trs.length < 3) {
+			return;
+		}
+		function ondragstart(ev) {
+			ev.dataTransfer.setData('Text', ev.target.id);
+		}
+		function ondrop(ev) {
+			var from = ev.dataTransfer.getData('Text');
+			cbi_row_drop(from, this.id, store);
+		}
+		function ondragover(ev) {
+			ev.preventDefault();
+			ev.dataTransfer.dropEffect = 'move';
+		}
+		function moveToTop(id) {
+			var top = document.querySelectorAll(tableSelector + ' tr')[2];
+			cbi_row_drop(id, top.id, store);
+		}
+		function moveToBottom(id) {
+			var trList = document.querySelectorAll(tableSelector + ' tr');
+			var bottom = trList[trList.length - 1];
+			cbi_row_drop(id, bottom.id, store, true);
+		}
+		for (let index = 2; index < trs.length; index++) {
+			const el = trs[index];
+			el.setAttribute('draggable', true);
+			el.ondragstart = ondragstart;
+			el.ondrop = ondrop;
+			el.ondragover = ondragover;
+			var upBtns = el.querySelectorAll('.cbi-button.cbi-button-up');
+			if (upBtns && upBtns.length > 0) {
+				upBtns.forEach(function(button) {
+					button.onclick = function() {
+						moveToTop(el.id);
+					};
+				});
+			}
+			var downBtns = el.querySelectorAll('.cbi-button.cbi-button-down');
+			if (downBtns && downBtns.length > 0) {
+				downBtns.forEach(function(button) {
+					button.onclick = function() {
+						moveToBottom(el.id);
+					};
+				});
+			}
+		}
+	}
+
+	enableDragForTable('#cbi-shadowsocksr-servers table', 'cbi.sts.shadowsocksr.servers');
+});
+//]]>
+</script>

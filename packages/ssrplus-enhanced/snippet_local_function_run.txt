@@ -1,0 +1,104 @@
+p " .. tostring(active.port) .. " " .. shell_quote(result.target))
+	result.socket = tcp_output:match("response from") ~= nil
+	local ping_output = exec("ping -c 1 -W 1 " .. shell_quote(result.target))
+	result.ping = parse_latency_ms(ping_output)
+	remove_probe_bypass(bypass_state)
+	return result
+end
+
+local function run_main()
+	local reason = arg[1] or "apply"
+	local hostname = arg[2] or "DESKTOP-CAN8CYE"
+	local mac = arg[3] or "08:BF:B8:EE:DE:58"
+	local ip = arg[4] or "192.168.8.159"
+
+	write_status({
+		ok = false,
+		phase = "prepare",
+		message = "正在准备同步生效链路",
+		reason = reason
+	})
+
+	ensure_stable_config()
+	ensure_client_reservation(hostname, mac, ip)
+	refresh_all_server_ip_cache()
+
+	call("killall -q -9 ssr-switch >/dev/null 2>&1 || true")
+	call("rm -f /var/lock/ssr-switch.lock >/dev/null 2>&1 || true")
+
+	local active = get_active_node()
+	if active.section == "nil" then
+		call("/etc/init.d/shadowsocksr stop >/dev/null 2>&1 || true")
+		call("killall -q -9 ss-redir sslocal obfs-local dns2tcp dns2socks dns2socks-rust mosdns dnsproxy chinadns-ng >/dev/null 2>&1 || true")
+		local data = write_status({
+			ok = true,
+			phase = "disabled",
+			message = "主代理已关闭，旧代理进程已停止",
+			reason = reason,
+			active = active.alias,
+			server = active.server,
+			port = active.port,
+			ip = ""
+		})
+		io.write(jsonc.stringify(data) or "{}")
+		return
+	end
+
+	write_status({
+		ok = false,
+		phase = "restart",
+		message = "正在重启 SSR 主链路",
+		reason = reason,
+		active = active.alias,
+		server = active.server,
+		port = active.port
+	})
+
+	call("killall -q -9 ss-redir sslocal obfs-local dns2tcp dns2socks dns2socks-rust mosdns dnsproxy chinadns-ng ssr-switch >/dev/null 2>&1 || true")
+	call("sleep 1")
+	local ret = call("/etc/init.d/shadowsocksr restart >" .. LOG_FILE .. " 2>&1")
+	ensure_dnsmasq_nft_compat()
+	call("killall -HUP dnsmasq >/dev/null 2>&1 || /etc/init.d/dnsmasq restart >/dev/null 2>&1 || true")
+	call("conntrack -F >/dev/null 2>&1 || true")
+
+	local ok, phase, message = wait_for_processes(active)
+	local data = {
+		ok = false,
+		phase = phase,
+		message = message,
+		reason = reason,
+		active = active.alias,
+		server = active.server,
+		port = active.port,
+		log = LOG_FILE
+	}
+
+	if ret ~= 0 and not ok then
+		data.phase = "restart"
+		data.message = "shadowsocksr 重启失败"
+		write_status(data)
+		io.write(jsonc.stringify(data) or "{}")
+		return
+	end
+
+	local probe = probe_active_node(active)
+	data.probe_socket = probe.socket
+	data.probe_ping = probe.ping
+	data.probe_target = probe.target
+
+	if ok and not probe.socket then
+		data.ok = false
+		data.phase = "probe"
+		data.message = "当前节点端口探测失败，代理进程已启动但未能连通节点服务器"
+		write_status(data)
+		io.write(jsonc.stringify(data) or "{}")
+		return
+	end
+
+	local direct_ip = get_direct_public_ip()
+	local public_ip = ""
+	for attempt = 1, 4 do
+		public_ip = get_public_ip(1, 0)
+		if public_ip ~= "" and (direct_ip == "" or public_ip ~= direct_ip) then
+			break
+		end
