@@ -34,6 +34,7 @@ This repository is the umbrella home for:
 - [Repository](https://github.com/LanceLeeA/router-plugin-hub)
 - [Packages](https://github.com/LanceLeeA/router-plugin-hub/tree/main/packages)
 - [ShadowsocksR Plus](https://github.com/LanceLeeA/router-plugin-hub/tree/main/packages/ssrplus-enhanced)
+- [OpenClash](https://github.com/LanceLeeA/router-plugin-hub/tree/main/packages/openclash-enhanced)
 - [Releases](https://github.com/LanceLeeA/router-plugin-hub/releases)
 - [Release Notes](https://github.com/LanceLeeA/router-plugin-hub/tree/main/docs/releases)
 - [Install Guide](https://github.com/LanceLeeA/router-plugin-hub/blob/main/docs/install.md)
@@ -88,7 +89,10 @@ The package currently under active maintenance is:
 
 - Source path: `packages/openclash-enhanced`
 - Purpose:
-  - reserved for future OpenClash enhancement work
+  - future OpenClash enhancement modules
+  - configuration import/export helpers
+  - DNS / IPv6 safety controls
+  - packaging and release notes
 
 ### Current Focus
 

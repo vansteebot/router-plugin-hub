@@ -1,9 +1,15 @@
 # OpenClash Enhanced
 
-Reserved for future OpenClash customization work.
+Enhanced OpenClash package placeholder for future customization work.
 
-Planned scope:
+## Planned Scope
+
 - LuCI UI adjustments
 - profile import/export helpers
 - DNS / IPv6 safety toggles
 - release packaging notes
+- router-friendly recovery helpers
+
+## Status
+
+This package path is currently reserved as the future home for OpenClash enhancement work in this repository.
