@@ -43,6 +43,27 @@ local function sync_apply_is_running()
 	return luci.sys.call("kill -0 " .. pid .. " >/dev/null 2>&1") == 0
 end
 
+local function current_global_server()
+	local section = uci:get_first("shadowsocksr", "global", "global_server", "nil")
+	if not section or section == "" then
+		return "nil"
+	end
+	local index = tostring(section):match("^@servers%[(%d+)%]$")
+	if not index then
+		return section
+	end
+	index = tonumber(index)
+	local current = 0
+	local resolved = section
+	uci:foreach("shadowsocksr", "servers", function(s)
+		if current == index then
+			resolved = s[".name"] or section
+		end
+		current = current + 1
+	end)
+	return resolved
+end
+
 m = Map("shadowsocksr", translate("ShadowSocksR Plus+ Settings"), translate("<h3>Support SS/SSR/V2RAY/XRAY/TROJAN/TUIC/HYSTERIA2/NAIVEPROXY/SOCKS5/TUN etc.</h3>"))
 m:section(SimpleSection).template = "shadowsocksr/status"
 
@@ -364,7 +385,9 @@ function m.on_after_apply(self)
 	if sync_apply_is_running() then
 		return
 	end
-	luci.sys.call("( /usr/bin/lua /usr/share/shadowsocksr/sync-apply.lua client " ..
+	local section = current_global_server()
+	local reason = (section and section ~= "" and section ~= "nil") and ("node:" .. section) or "client"
+	luci.sys.call("( /usr/bin/lua /usr/share/shadowsocksr/sync-apply.lua '" .. reason .. "' " ..
 		">/tmp/ssrplus-sync-apply-bg.log 2>&1 ) &")
 end
 

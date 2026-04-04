@@ -298,21 +298,6 @@
 			currentIp.innerHTML = ssrEscapeHtml((data && data.ip) || '-');
 		}
 
-		if (data && typeof data.active_section !== 'undefined') {
-			document.querySelectorAll('select').forEach(function(select) {
-				var name = select.getAttribute('name') || '';
-				if (name.indexOf('global_server') === -1) {
-					return;
-				}
-				for (var i = 0; i < select.options.length; i += 1) {
-					if (select.options[i].value === data.active_section) {
-						select.value = data.active_section;
-						return;
-					}
-				}
-			});
-		}
-
 		ssrSetModeActive((data && data.ipv6_mode) || 'off');
 		ssrWriteFeedback(ssrFeedbackLevel(data), data || { message: '等待状态更新' });
 		window.__ssrLastStatusData = data || null;
