@@ -36,6 +36,7 @@ This repository is the umbrella home for:
 - [ShadowsocksR Plus](https://github.com/LanceLeeA/router-plugin-hub/tree/main/packages/ssrplus-enhanced)
 - [Releases](https://github.com/LanceLeeA/router-plugin-hub/releases)
 - [Release Notes](https://github.com/LanceLeeA/router-plugin-hub/tree/main/docs/releases)
+- [Install Guide](https://github.com/LanceLeeA/router-plugin-hub/blob/main/docs/install.md)
 
 ---
 
@@ -107,7 +108,27 @@ The ShadowsocksR Plus enhancement work currently includes:
 - Package: `ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260404v4.run`
 - Size: about `54.37 MB`
 - Type: full upstream-style `.run` package
-- Recommended distribution: attach to GitHub Releases
+- Download location: GitHub Releases
+- Recommended distribution: attach the `.run` package to GitHub Releases, not to git history
+
+### Where To Download
+
+The `.run` installer should be downloaded from:
+
+- [GitHub Releases](https://github.com/LanceLeeA/router-plugin-hub/releases)
+
+This repository keeps source code, build scripts, and release notes in git.
+Large installable `.run` artifacts should be distributed through the Releases page.
+
+### iStore Installation
+
+For soft-router environments, this full `.run` package is intended to be used as a directly installable package through iStore manual upload / installation workflows.
+
+中文说明：
+
+- `.run` 安装包请从 GitHub Releases 下载
+- 下载后可在软路由 `iStore` 中直接上传安装
+- 仓库本身主要保存源码、打包脚本和发布说明，不建议把大体积 `.run` 文件反复提交到 git 历史中
 
 ### Highlights
 

@@ -50,3 +50,15 @@ This release provides a full installable router package with enhanced SSR Plus+ 
 ### 中文
 
 这个版本提供完整可安装的路由器插件包，包含增强版 SSR Plus+ 界面、更安全的重启与应用逻辑、打包辅助脚本，以及面向路由器场景的恢复能力优化。
+
+---
+
+## Suggested Repo Notice
+
+### English
+
+Download the `.run` installer from GitHub Releases. For compatible soft-router environments, the package can be uploaded and installed directly through iStore manual installation workflows.
+
+### 中文
+
+`.run` 安装包请从 GitHub Releases 下载。对于兼容的软路由环境，可在 `iStore` 中直接上传并安装。
