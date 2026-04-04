@@ -4,6 +4,7 @@
 
 local m, s, sec, o
 local uci = require "luci.model.uci".cursor()
+local http = require "luci.http"
 
 -- 获取 LAN IP 地址
 function lanip()
@@ -43,9 +44,7 @@ local function sync_apply_is_running()
 	return luci.sys.call("kill -0 " .. pid .. " >/dev/null 2>&1") == 0
 end
 
-local function current_global_server()
-	local current_uci = require "luci.model.uci".cursor()
-	local section = current_uci:get_first("shadowsocksr", "global", "global_server", "nil")
+local function normalize_server_section(section, current_uci)
 	if not section or section == "" then
 		return "nil"
 	end
@@ -53,6 +52,7 @@ local function current_global_server()
 	if not index then
 		return section
 	end
+	current_uci = current_uci or require "luci.model.uci".cursor()
 	index = tonumber(index)
 	local current = 0
 	local resolved = section
@@ -63,6 +63,38 @@ local function current_global_server()
 		current = current + 1
 	end)
 	return resolved
+end
+
+local function current_global_server()
+	local current_uci = require "luci.model.uci".cursor()
+	local section = current_uci:get_first("shadowsocksr", "global", "global_server", "nil")
+	return normalize_server_section(section, current_uci)
+end
+
+local function submitted_global_server()
+	local current_uci = require "luci.model.uci".cursor()
+	local global = current_uci:get_first("shadowsocksr", "global")
+	local candidates = {}
+	if global and global ~= "" then
+		table.insert(candidates, "cbid.shadowsocksr." .. global .. ".global_server")
+	end
+	table.insert(candidates, "cbid.shadowsocksr.@global[0].global_server")
+	for _, key in ipairs(candidates) do
+		local value = http.formvalue(key)
+		if value and value ~= "" then
+			return normalize_server_section(value, current_uci)
+		end
+	end
+	local message = http.context and http.context.request and http.context.request.message
+	local params = message and message.params
+	if type(params) == "table" then
+		for key, value in pairs(params) do
+			if tostring(key):match("^cbid%.shadowsocksr%..+%.global_server$") and value and value ~= "" then
+				return normalize_server_section(value, current_uci)
+			end
+		end
+	end
+	return nil
 end
 
 m = Map("shadowsocksr", translate("ShadowSocksR Plus+ Settings"), translate("<h3>Support SS/SSR/V2RAY/XRAY/TROJAN/TUIC/HYSTERIA2/NAIVEPROXY/SOCKS5/TUN etc.</h3>"))
@@ -386,7 +418,7 @@ function m.on_after_apply(self)
 	if sync_apply_is_running() then
 		return
 	end
-	local section = current_global_server()
+	local section = submitted_global_server() or current_global_server()
 	local reason = (section and section ~= "" and section ~= "nil") and ("node:" .. section) or "client"
 	luci.sys.call("( /usr/bin/lua /usr/share/shadowsocksr/sync-apply.lua '" .. reason .. "' " ..
 		">/tmp/ssrplus-sync-apply-bg.log 2>&1 ) &")
