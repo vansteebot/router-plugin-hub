@@ -265,9 +265,9 @@ node = s:option(Button, "apply_node", translate("Apply"))
 node.inputstyle = "apply"
 node.render = function(self, section, scope)
 	if section == global_server then
-		self.title = translate("Reapply Current Node")
+		self.title = translate("重新应用当前节点")
 	else
-		self.title = translate("Switch To This Node")
+		self.title = translate("切换到此节点")
 	end
 	Button.render(self, section, scope)
 end
