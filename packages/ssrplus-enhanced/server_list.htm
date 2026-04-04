@@ -79,6 +79,7 @@ window.addEventListener('load', function () {
 	const statusBox = document.getElementById('ssrplus_ping_status');
 	const pingUrl = '<%=luci.dispatcher.build_url("admin/services/shadowsocksr/ping")%>';
 	const statusUrl = '<%=luci.dispatcher.build_url("admin/services/shadowsocksr/status_info")%>';
+	const applySyncUrl = '<%=luci.dispatcher.build_url("admin/services/shadowsocksr/apply_sync")%>';
 	const state = {
 		running: false,
 		cancelled: false,
@@ -296,6 +297,9 @@ window.addEventListener('load', function () {
 
 	function bindApplyButtonsPausePing() {
 		document.querySelectorAll('input.cbi-button-apply, button.cbi-button-apply, input.cbi-button-save, button.cbi-button-save, input.cbi-button-positive, button.cbi-button-positive').forEach(function(button) {
+			if (button.getAttribute('data-ssrplus-node-apply') === '1') {
+				return;
+			}
 			if (button.getAttribute('data-ssrplus-ping-bound') === '1') {
 				return;
 			}
@@ -317,6 +321,63 @@ window.addEventListener('load', function () {
 		});
 	}
 
+	function rowSection(button) {
+		const row = button && button.closest ? button.closest('tr') : null;
+		if (!row || !row.id) {
+			return '';
+		}
+		const match = row.id.match(/-([^-]+)$/);
+		return match ? match[1] : '';
+	}
+
+	function queueNodeApply(section) {
+		if (!section) {
+			setStatus('未能识别当前节点，请刷新页面后重试', 'error');
+			applyLocked = false;
+			lockApplyControls(false);
+			return;
+		}
+		XHR.get(applySyncUrl, { section: section }, function(x, data) {
+			if (!(x && x.status === 200 && data)) {
+				applyLocked = false;
+				lockApplyControls(false);
+				setStatus('节点切换请求失败，请稍后重试', 'error');
+				return;
+			}
+			setStatus(data.message || '节点已保存，后台正在切换并重建代理链路', data.ok ? 'warn' : 'error');
+			window.setTimeout(function() {
+				window.location.reload();
+			}, 600);
+		}, true);
+	}
+
+	function bindNodeApplyButtons() {
+		document.querySelectorAll('#cbi-shadowsocksr-servers table tr input.cbi-button-apply, #cbi-shadowsocksr-servers table tr button.cbi-button-apply').forEach(function(button) {
+			button.setAttribute('data-ssrplus-node-apply', '1');
+			if (button.getAttribute('data-ssrplus-node-bound') === '1') {
+				return;
+			}
+			button.setAttribute('data-ssrplus-node-bound', '1');
+			button.addEventListener('click', function(ev) {
+				const section = rowSection(button);
+				ev.preventDefault();
+				ev.stopPropagation();
+				if (applyLocked) {
+					setStatus('后台正在生效，请等待当前任务完成', 'warn');
+					return false;
+				}
+				applyLocked = true;
+				lockApplyControls(true);
+				if (state.running) {
+					stopBatchPing();
+				}
+				setStatus('节点已保存，后台正在切换并重建代理链路', 'warn');
+				queueNodeApply(section);
+				return false;
+			});
+		});
+	}
+
 	if (runButton) {
 		runButton.addEventListener('click', function() {
 			startBatchPing({ reset: true });
@@ -329,6 +390,7 @@ window.addEventListener('load', function () {
 	}
 
 	moveToolbarNearTable();
+	bindNodeApplyButtons();
 	bindApplyButtonsPausePing();
 	refreshApplyLock();
 	window.setInterval(refreshApplyLock, 3000);
