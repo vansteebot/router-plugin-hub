@@ -577,6 +577,22 @@ local function probe_active_node(active)
 	return result
 end
 
+local function wait_for_probe_ready(active, attempts, delay_seconds)
+	attempts = tonumber(attempts) or 1
+	delay_seconds = tonumber(delay_seconds) or 0
+	local probe = { target = active.server or "", socket = false, ping = nil }
+	for attempt = 1, attempts do
+		probe = probe_active_node(active)
+		if probe.socket then
+			return probe
+		end
+		if attempt < attempts and delay_seconds > 0 then
+			call("sleep " .. tostring(delay_seconds))
+		end
+	end
+	return probe
+end
+
 local function hard_cleanup(reason)
 	write_status({
 		ok = false,
@@ -749,12 +765,26 @@ local function run_main()
 		return
 	end
 
+	if ok and not probe.socket then
+		write_status({
+			ok = false,
+			phase = "prepare",
+			message = "代理进程已启动，正在等待当前节点端口探测稳定",
+			reason = reason,
+			active = active.alias,
+			server = active.server,
+			port = active.port
+		})
+		probe = wait_for_probe_ready(active, 4, 2)
+	end
+
 	data.probe_socket = probe.socket
 	data.probe_ping = probe.ping
 	data.probe_target = probe.target
 
-	local should_retry = (not hard_rebuild) and (reason == "node" or reason == "apply" or reason == "rebuild")
-		and ((ret ~= 0 and not ok) or not ok or (ok and not probe.socket))
+	local should_retry = (not hard_rebuild)
+		and (reason == "apply" or reason == "rebuild" or reason == "restart")
+		and ((ret ~= 0 and not ok) or not ok)
 	if should_retry then
 		write_status({
 			ok = false,

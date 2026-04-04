@@ -35,6 +35,14 @@ local function is_finded(e)
 	return luci.sys.exec(string.format('type -t -p "%s" 2>/dev/null', e)) ~= ""
 end
 
+local function sync_apply_is_running()
+	local pid = luci.sys.exec("cat /var/lock/ssrplus-sync-apply.lock 2>/dev/null | tr -d '\\n'")
+	if not pid or pid == "" then
+		return false
+	end
+	return luci.sys.call("kill -0 " .. pid .. " >/dev/null 2>&1") == 0
+end
+
 m = Map("shadowsocksr", translate("ShadowSocksR Plus+ Settings"), translate("<h3>Support SS/SSR/V2RAY/XRAY/TROJAN/TUIC/HYSTERIA2/NAIVEPROXY/SOCKS5/TUN etc.</h3>"))
 m:section(SimpleSection).template = "shadowsocksr/status"
 
@@ -353,6 +361,9 @@ m:section(SimpleSection).template = "shadowsocksr/status_bottom"
 
 m.apply_on_parse = false
 function m.on_after_apply(self)
+	if sync_apply_is_running() then
+		return
+	end
 	luci.sys.call("( /usr/bin/lua /usr/share/shadowsocksr/sync-apply.lua client " ..
 		">/tmp/ssrplus-sync-apply-bg.log 2>&1 ) &")
 end

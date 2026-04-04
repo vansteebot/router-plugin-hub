@@ -33,6 +33,29 @@ For compatible soft-router environments:
 3. Upload the `.run` package manually.
 4. Install it directly from iStore.
 
+## Preview
+
+### What you get in this package
+
+- A cleaner `ShadowsocksR Plus+` client dashboard with compact status cards
+- Async apply / rebuild flows with safer button locking
+- Node list helpers, batch latency checks, and controlled auto-switch support
+- Full `.run` package release workflow for soft-router / iStore upload installs
+
+### Quick preview links
+
+- [SSR Plus+ package page](https://github.com/LanceLeeA/router-plugin-hub/tree/main/packages/ssrplus-enhanced)
+- [OpenClash package page](https://github.com/LanceLeeA/router-plugin-hub/tree/main/packages/openclash-enhanced)
+- [Install guide](https://github.com/LanceLeeA/router-plugin-hub/blob/main/docs/install.md)
+- [Release notes](https://github.com/LanceLeeA/router-plugin-hub/tree/main/docs/releases)
+
+### 中文预览
+
+- 更紧凑的 `ShadowsocksR Plus+` 客户端状态区
+- 更安全的异步保存、生效、重建流程
+- 节点列表批量测速与受控自动切换
+- 可直接用于软路由 `iStore` 上传安装的完整 `.run` 包
+
 ### 中文快速说明
 
 - `.run` 安装包请从 [GitHub Releases](https://github.com/LanceLeeA/router-plugin-hub/releases) 下载
