@@ -48,29 +48,6 @@
 		button.disabled = false;
 	}
 
-	function ssrSetButtonLabel(button, text) {
-		if (!button || !text) {
-			return;
-		}
-		if (button.tagName === 'INPUT') {
-			button.value = text;
-		} else {
-			button.textContent = text;
-		}
-	}
-
-	function ssrRelabelPageActions() {
-		document.querySelectorAll('.cbi-page-actions input.cbi-button-save, .cbi-page-actions button.cbi-button-save').forEach(function(button) {
-			ssrSetButtonLabel(button, '保存（仅保存配置）');
-		});
-		document.querySelectorAll('.cbi-page-actions input.cbi-button-apply, .cbi-page-actions button.cbi-button-apply, .cbi-page-actions input.cbi-button-positive, .cbi-page-actions button.cbi-button-positive').forEach(function(button) {
-			ssrSetButtonLabel(button, '保存并切换到已选主节点');
-		});
-		document.querySelectorAll('.cbi-page-actions input.cbi-button-reset, .cbi-page-actions button.cbi-button-reset').forEach(function(button) {
-			ssrSetButtonLabel(button, '重置未保存修改');
-		});
-	}
-
 	function ssrIsBusy(data) {
 		return !!(data && data.phase && ssrBusyPhases[data.phase]);
 	}
@@ -325,7 +302,6 @@
 		ssrWriteFeedback(ssrFeedbackLevel(data), data || { message: '等待状态更新' });
 		window.__ssrLastStatusData = data || null;
 		ssrLockInteractiveControls(ssrIsBusy(data));
-		ssrRelabelPageActions();
 		ssrMaybeNotify(data);
 	}
 
@@ -377,7 +353,6 @@
 		return ssrPostAction(ssrToggleIpv6Url, { mode: mode }, button, labels[mode] || '正在更新 IPv6...');
 	}
 
-	ssrRelabelPageActions();
 	window.setInterval(ssrRefreshStatus, 3000);
 	window.setTimeout(ssrRefreshStatus, 200);
 //]]></script>

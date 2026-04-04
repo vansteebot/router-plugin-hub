@@ -44,7 +44,8 @@ local function sync_apply_is_running()
 end
 
 local function current_global_server()
-	local section = uci:get_first("shadowsocksr", "global", "global_server", "nil")
+	local current_uci = require "luci.model.uci".cursor()
+	local section = current_uci:get_first("shadowsocksr", "global", "global_server", "nil")
 	if not section or section == "" then
 		return "nil"
 	end
@@ -55,7 +56,7 @@ local function current_global_server()
 	index = tonumber(index)
 	local current = 0
 	local resolved = section
-	uci:foreach("shadowsocksr", "servers", function(s)
+	current_uci:foreach("shadowsocksr", "servers", function(s)
 		if current == index then
 			resolved = s[".name"] or section
 		end
