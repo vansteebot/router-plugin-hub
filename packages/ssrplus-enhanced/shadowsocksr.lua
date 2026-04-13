@@ -586,12 +586,7 @@ local function run_fast_restart(wait_mode)
 end
 
 function check_site(host, port)
-    local nixio = require "nixio"
-    local socket = nixio.socket("inet", "stream")
-    socket:setopt("socket", "rcvtimeo", 2)
-    socket:setopt("socket", "sndtimeo", 2)
-    local ret = socket:connect(host, port)
-    socket:close()
+    local ret = luci.sys.call("timeout 3 tcping-simple " .. shell_quote(tostring(host)) .. " " .. tostring(port) .. " >/dev/null 2>&1") == 0
     return ret
 end
 
@@ -823,8 +818,10 @@ function act_ping()
 		e.ping = parse_latency_ms(result)
 	else
 		if target ~= "" then
+			local tcping_out = luci.sys.exec("timeout 3 tcping-simple " .. shell_quote(target) .. " " .. tostring(port) .. " 2>&1")
+			e.socket = tcping_out:match("open") ~= nil
+
 			local nping_out = luci.sys.exec("timeout 5 nping --tcp-connect -c 1 -p " .. tostring(port) .. " " .. shell_quote(target) .. " 2>&1")
-			e.socket = nping_out:match("Successful connections: 1") ~= nil
 			e.ping = parse_latency_ms(nping_out)
 		end
 
@@ -872,12 +869,9 @@ function check_port()
 		local target = resolved_ip ~= "" and resolved_ip or s.server
 		local bypass_state = add_ping_bypass(resolved_ip)
 
-		-- TCP 测试
-		local socket = nixio.socket("inet", "stream")
-		socket:setopt("socket", "rcvtimeo", 3)
-		socket:setopt("socket", "sndtimeo", 3)
-		local ret = socket:connect(target, s.server_port)
-		socket:close()
+		-- TCP 测试 (tcping-simple guaranteed installed, works in CGI)
+		local tcping_out = luci.sys.exec("timeout 3 tcping-simple " .. shell_quote(target) .. " " .. tostring(s.server_port) .. " 2>&1")
+		local ret = tcping_out:match("open") ~= nil
 
 		if ret then
 			retstring = retstring .. string.format("<font><b style='color:green'>[%s] OK.</b></font><br />", server_name)
