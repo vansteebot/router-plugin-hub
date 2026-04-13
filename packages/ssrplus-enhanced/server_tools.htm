@@ -169,11 +169,10 @@
 
 	function ssrBulkImport(button) {
 		var path = document.getElementById('ssrplus_bulk_path').value || '/root/ssrplus-txt';
-		var preferred = document.getElementById('ssrplus_bulk_preferred').value || '';
 		var payload = document.getElementById('ssrplus_bulk_payload').value || '';
 		var body = new URLSearchParams();
 		body.append('path', path);
-		body.append('preferred', preferred);
+		body.append('preferred', '');
 		body.append('payload', payload);
 		button.disabled = true;
 		var label = button.innerHTML;
@@ -310,13 +309,6 @@
 		<div class="cbi-value-field">
 			<input type="file" accept=".txt,.list,text/plain" onchange="ssrFillTextarea(this)" />
 			<div class="cbi-value-description">上传后会自动读入下面的文本框，允许继续编辑后再导入。</div>
-		</div>
-	</div>
-	<div class="cbi-value">
-		<label class="cbi-value-title">首选节点关键字</label>
-		<div class="cbi-value-field">
-			<input id="ssrplus_bulk_preferred" type="text" placeholder="例如 HK8 Annual 2" />
-			<div class="cbi-value-description">导入完成后会优先把包含该关键字的节点设为当前主节点。</div>
 		</div>
 	</div>
 	<div class="cbi-value">

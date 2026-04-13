@@ -4,7 +4,6 @@ set -eu
 
 DEFAULT_INPUT="/root/ssrplus-txt"
 INPUT_PATH="${1:-$DEFAULT_INPUT}"
-PREFERRED_NODE="${2:-}"
 BACKUP_DIR="/root/ssrplus-enhanced-backup"
 TMP_DIR="/tmp/ssrplus-import"
 PARSED_TSV="$TMP_DIR/parsed.tsv"
@@ -36,24 +35,6 @@ find_existing_section() {
 		current_server="$(uci -q get "shadowsocksr.$section.server" || true)"
 		current_port="$(uci -q get "shadowsocksr.$section.server_port" || true)"
 		if [ "$current_server" = "$server" ] && [ "$current_port" = "$port" ]; then
-			printf '%s\n' "$section"
-			return 0
-		fi
-	done
-
-	return 1
-}
-
-select_section_by_keyword() {
-	local keyword="$1"
-	local section alias server
-
-	[ -n "$keyword" ] || return 1
-
-	for section in $(uci show shadowsocksr | sed -n "s/^shadowsocksr\.\([^.=]*\)=servers$/\1/p"); do
-		alias="$(uci -q get "shadowsocksr.$section.alias" || true)"
-		server="$(uci -q get "shadowsocksr.$section.server" || true)"
-		if printf '%s\n' "$alias|$server" | grep -Fqi -- "$keyword"; then
 			printf '%s\n' "$section"
 			return 0
 		fi
@@ -234,7 +215,6 @@ COUNT="$(lua "$PARSE_LUA" "$INPUT_PATH" "$PARSED_TSV")" || die "Failed to parse 
 
 UPDATED=0
 CREATED=0
-SELECTED_SECTION=""
 TAB="$(printf '\t')"
 
 while IFS="$TAB" read -r SERVER PORT CIPHER PASSWORD PLUGIN PLUGIN_OPTS ALIAS; do
@@ -257,13 +237,13 @@ while IFS="$TAB" read -r SERVER PORT CIPHER PASSWORD PLUGIN PLUGIN_OPTS ALIAS; d
 
 	if ! uci -q get "shadowsocksr.$SECTION.local_port" >/dev/null 2>&1; then
 		uci set "shadowsocksr.$SECTION.local_port=1234"
-	end
+	fi
 	if ! uci -q get "shadowsocksr.$SECTION.kcp_param" >/dev/null 2>&1; then
 		uci set "shadowsocksr.$SECTION.kcp_param=--nocomp"
-	end
+	fi
 	if ! uci -q get "shadowsocksr.$SECTION.has_ss_type" >/dev/null 2>&1; then
 		uci set "shadowsocksr.$SECTION.has_ss_type=ss-rust"
-	end
+	fi
 
 	if [ -n "$PLUGIN" ]; then
 		uci set "shadowsocksr.$SECTION.enable_plugin=1"
@@ -273,44 +253,13 @@ while IFS="$TAB" read -r SERVER PORT CIPHER PASSWORD PLUGIN PLUGIN_OPTS ALIAS; d
 		uci set "shadowsocksr.$SECTION.enable_plugin=0"
 		uci -q delete "shadowsocksr.$SECTION.plugin" >/dev/null 2>&1 || true
 		uci -q delete "shadowsocksr.$SECTION.plugin_opts" >/dev/null 2>&1 || true
-	end
-
-	if [ -n "$PREFERRED_NODE" ] && [ -z "$SELECTED_SECTION" ]; then
-		if printf '%s\n' "$ALIAS|$SERVER" | grep -Fqi -- "$PREFERRED_NODE"; then
-			SELECTED_SECTION="$SECTION"
-		fi
 	fi
+
 done < "$PARSED_TSV"
 
-if [ -n "$PREFERRED_NODE" ] && [ -z "$SELECTED_SECTION" ]; then
-	SELECTED_SECTION="$(select_section_by_keyword "$PREFERRED_NODE" || true)"
-fi
-
-if [ -n "$SELECTED_SECTION" ]; then
-	uci set shadowsocksr.@global[0].global_server="$SELECTED_SECTION"
-fi
-
 uci commit shadowsocksr
-
-CURRENT_SECTION="$(uci -q get shadowsocksr.@global[0].global_server || true)"
-CURRENT_ALIAS=""
-CURRENT_SERVER=""
-CURRENT_PORT=""
-if [ -n "$CURRENT_SECTION" ] && [ "$CURRENT_SECTION" != "nil" ]; then
-	CURRENT_ALIAS="$(uci -q get "shadowsocksr.$CURRENT_SECTION.alias" || true)"
-	CURRENT_SERVER="$(uci -q get "shadowsocksr.$CURRENT_SECTION.server" || true)"
-	CURRENT_PORT="$(uci -q get "shadowsocksr.$CURRENT_SECTION.server_port" || true)"
-fi
 
 log "Imported nodes: $COUNT"
 log "Created: $CREATED"
 log "Updated: $UPDATED"
-if [ -n "$PREFERRED_NODE" ]; then
-	log "Preferred keyword: $PREFERRED_NODE"
-fi
-if [ -n "$CURRENT_SECTION" ] && [ "$CURRENT_SECTION" != "nil" ]; then
-	log "Current configured main node: ${CURRENT_ALIAS:-$CURRENT_SECTION}|${CURRENT_SERVER}|${CURRENT_PORT}"
-else
-	log "Current configured main node unchanged (Disable)"
-fi
-log "Import finished. Runtime chain was not restarted."
+log "Import finished. Nodes imported only, runtime chain was not restarted."
