@@ -180,13 +180,56 @@ for _, file in ipairs(files) do
             local key = server .. ":" .. port
             if not seen[key] then
               seen[key] = true
+              -- type=ss: server port cipher password plugin plugin_opts alias
               out:write(table.concat({
+                "ss",
                 server,
                 port,
                 cipher,
                 password,
                 plugin,
                 plugin_opts,
+                alias
+              }, "\t"))
+              out:write("\n")
+              count = count + 1
+            end
+          end
+        end
+      elseif line:match("^trojan://") then
+        local body = line:sub(10)
+        local tag = ""
+        local hash = body:find("#", 1, true)
+        if hash then
+          tag = urldecode(body:sub(hash + 1))
+          body = body:sub(1, hash - 1)
+        end
+        local query = ""
+        local qm = body:find("?", 1, true)
+        if qm then
+          query = body:sub(qm + 1)
+          body = body:sub(1, qm - 1)
+        end
+        local password, hostpart = body:match("^(.-)@(.+)$")
+        if password and hostpart then
+          local server, port = hostpart:match("^(.-):(%d+)$")
+          if server and port then
+            local params = {}
+            for k, v in query:gmatch("([^&=?]+)=([^&]*)") do
+              params[urldecode(k)] = urldecode(v)
+            end
+            local sni = params.sni or params.peer or server
+            local alias = clean_alias(tag, server)
+            local key = server .. ":" .. port
+            if not seen[key] then
+              seen[key] = true
+              -- type=trojan: server port password sni alias
+              out:write(table.concat({
+                "trojan",
+                server,
+                port,
+                password,
+                sni,
                 alias
               }, "\t"))
               out:write("\n")
@@ -203,7 +246,7 @@ end
 out:close()
 
 if count == 0 then
-  io.stderr:write("no valid ss:// lines found\n")
+  io.stderr:write("no valid ss:// or trojan:// lines found\n")
   os.exit(3)
 end
 
@@ -211,14 +254,23 @@ print(count)
 LUA
 
 COUNT="$(lua "$PARSE_LUA" "$INPUT_PATH" "$PARSED_TSV")" || die "Failed to parse input"
-[ -s "$PARSED_TSV" ] || die "No valid ss:// lines found in $INPUT_PATH"
+[ -s "$PARSED_TSV" ] || die "No valid ss:// or trojan:// lines found in $INPUT_PATH"
 
 UPDATED=0
 CREATED=0
 TAB="$(printf '\t')"
 
-while IFS="$TAB" read -r SERVER PORT CIPHER PASSWORD PLUGIN PLUGIN_OPTS ALIAS; do
-	[ -n "$SERVER" ] || continue
+while IFS="$TAB" read -r NODE_TYPE F2 F3 F4 F5 F6 F7 F8; do
+	[ -n "$NODE_TYPE" ] || continue
+
+	if [ "$NODE_TYPE" = "ss" ]; then
+		SERVER="$F2"; PORT="$F3"; CIPHER="$F4"; PASSWORD="$F5"
+		PLUGIN="$F6"; PLUGIN_OPTS="$F7"; ALIAS="$F8"
+	elif [ "$NODE_TYPE" = "trojan" ]; then
+		SERVER="$F2"; PORT="$F3"; PASSWORD="$F4"; SNI="$F5"; ALIAS="$F6"
+	else
+		continue
+	fi
 
 	if SECTION="$(find_existing_section "$SERVER" "$PORT")"; then
 		UPDATED=$((UPDATED + 1))
@@ -227,11 +279,9 @@ while IFS="$TAB" read -r SERVER PORT CIPHER PASSWORD PLUGIN PLUGIN_OPTS ALIAS; d
 		CREATED=$((CREATED + 1))
 	fi
 
-	uci set "shadowsocksr.$SECTION.type=ss"
 	uci set "shadowsocksr.$SECTION.server=$SERVER"
 	uci set "shadowsocksr.$SECTION.server_port=$PORT"
 	uci set "shadowsocksr.$SECTION.password=$PASSWORD"
-	uci set "shadowsocksr.$SECTION.encrypt_method_ss=$CIPHER"
 	uci set "shadowsocksr.$SECTION.alias=$ALIAS"
 	uci set "shadowsocksr.$SECTION.switch_enable=0"
 
@@ -241,18 +291,31 @@ while IFS="$TAB" read -r SERVER PORT CIPHER PASSWORD PLUGIN PLUGIN_OPTS ALIAS; d
 	if ! uci -q get "shadowsocksr.$SECTION.kcp_param" >/dev/null 2>&1; then
 		uci set "shadowsocksr.$SECTION.kcp_param=--nocomp"
 	fi
-	if ! uci -q get "shadowsocksr.$SECTION.has_ss_type" >/dev/null 2>&1; then
-		uci set "shadowsocksr.$SECTION.has_ss_type=ss-rust"
-	fi
 
-	if [ -n "$PLUGIN" ]; then
-		uci set "shadowsocksr.$SECTION.enable_plugin=1"
-		uci set "shadowsocksr.$SECTION.plugin=$PLUGIN"
-		uci set "shadowsocksr.$SECTION.plugin_opts=$PLUGIN_OPTS"
-	else
-		uci set "shadowsocksr.$SECTION.enable_plugin=0"
-		uci -q delete "shadowsocksr.$SECTION.plugin" >/dev/null 2>&1 || true
-		uci -q delete "shadowsocksr.$SECTION.plugin_opts" >/dev/null 2>&1 || true
+	if [ "$NODE_TYPE" = "ss" ]; then
+		uci set "shadowsocksr.$SECTION.type=ss"
+		uci set "shadowsocksr.$SECTION.encrypt_method_ss=$CIPHER"
+		if ! uci -q get "shadowsocksr.$SECTION.has_ss_type" >/dev/null 2>&1; then
+			uci set "shadowsocksr.$SECTION.has_ss_type=ss-rust"
+		fi
+		if [ -n "$PLUGIN" ]; then
+			uci set "shadowsocksr.$SECTION.enable_plugin=1"
+			uci set "shadowsocksr.$SECTION.plugin=$PLUGIN"
+			uci set "shadowsocksr.$SECTION.plugin_opts=$PLUGIN_OPTS"
+		else
+			uci set "shadowsocksr.$SECTION.enable_plugin=0"
+			uci -q delete "shadowsocksr.$SECTION.plugin" >/dev/null 2>&1 || true
+			uci -q delete "shadowsocksr.$SECTION.plugin_opts" >/dev/null 2>&1 || true
+		fi
+	elif [ "$NODE_TYPE" = "trojan" ]; then
+		# Use xray (type=v2ray) with trojan protocol — native trojan binary may be broken
+		uci set "shadowsocksr.$SECTION.type=v2ray"
+		uci set "shadowsocksr.$SECTION.v2ray_protocol=trojan"
+		uci set "shadowsocksr.$SECTION.tls=1"
+		uci set "shadowsocksr.$SECTION.tls_host=$SNI"
+		uci set "shadowsocksr.$SECTION.fingerprint=chrome"
+		uci set "shadowsocksr.$SECTION.transport=tcp"
+		# allow_insecure from server_subscribe applies globally
 	fi
 
 done < "$PARSED_TSV"
