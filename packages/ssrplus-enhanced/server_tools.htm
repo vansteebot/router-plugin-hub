@@ -205,6 +205,42 @@
 		return false;
 	}
 
+	function ssrSubFetch(button) {
+		var url = document.getElementById('ssrplus_sub_url').value.trim();
+		if (!url) {
+			ssrServerToolsWrite('error', { message: '请输入订阅链接 URL' });
+			return false;
+		}
+		button.disabled = true;
+		var label = button.innerHTML;
+		button.innerHTML = '正在拉取...';
+		ssrServerToolsWrite('info', { message: '正在从订阅链接拉取节点...', phase: 'import' });
+		var fetchUrl = '<%=url([[admin]], [[services]], [[shadowsocksr]], [[sub_fetch]])%>';
+		var body = new URLSearchParams();
+		body.append('url', url);
+		fetch(fetchUrl, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+			body: body.toString(),
+			credentials: 'same-origin'
+		}).then(function(resp) {
+			return resp.json();
+		}).then(function(data) {
+			if (data && data.ok && data.lines) {
+				document.getElementById('ssrplus_bulk_payload').value = data.lines;
+				ssrServerToolsWrite('success', { message: '拉取成功，共 ' + data.count + ' 条节点已填入文本框，点击「批量解析 / 覆盖导入」即可导入。' });
+			} else {
+				ssrServerToolsWrite('error', { message: data && data.message ? data.message : '拉取失败' });
+			}
+		}).catch(function(err) {
+			ssrServerToolsWrite('error', { message: '拉取请求失败: ' + err });
+		}).finally(function() {
+			button.disabled = false;
+			button.innerHTML = label;
+		});
+		return false;
+	}
+
 	function ssrBindServerApplyButtons() {
 		var selectors = [
 			'.cbi-page-actions input.cbi-button-apply',

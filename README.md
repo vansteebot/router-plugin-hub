@@ -1,241 +1,127 @@
 # Router Plugin Hub
 
-[![Repo](https://img.shields.io/badge/GitHub-router--plugin--hub-181717?logo=github)](https://github.com/LanceLeeA/router-plugin-hub)
-[![Platform](https://img.shields.io/badge/Platform-GL.iNet%20%2F%20OpenWrt-4c6ef5)](https://github.com/LanceLeeA/router-plugin-hub)
-[![Package](https://img.shields.io/badge/Current-SSR%20Plus%2B%20Enhanced-10b981)](https://github.com/LanceLeeA/router-plugin-hub/tree/main/packages/ssrplus-enhanced)
-[![Releases](https://img.shields.io/badge/Release-GitHub%20Releases-f59e0b)](https://github.com/LanceLeeA/router-plugin-hub/releases)
+[![Repo](https://img.shields.io/badge/GitHub-router--plugin--hub-181717?logo=github)](https://github.com/vansteebot/router-plugin-hub)
+[![Platform](https://img.shields.io/badge/Platform-GL.iNet%20%2F%20OpenWrt-4c6ef5)](https://github.com/vansteebot/router-plugin-hub)
+[![Package](https://img.shields.io/badge/Current-SSR%20Plus%2B%20Enhanced-10b981)](https://github.com/vansteebot/router-plugin-hub/tree/main/packages/ssrplus-enhanced)
+[![Releases](https://img.shields.io/badge/Release-GitHub%20Releases-f59e0b)](https://github.com/vansteebot/router-plugin-hub/releases)
 
-Router Plugin Hub is a centralized repository for router-side plugin enhancements, packaging workflows, release notes, and installable artifacts.
-
-This repository is the umbrella home for:
-
-- enhanced `SSR Plus+` builds
-- future `OpenClash` enhancements
-- router troubleshooting and recovery helpers
-- release notes, build scripts, and installable `.run` packages
+Router Plugin Hub 是面向路由器插件增强开发的总仓库，统一管理插件源码、打包脚本、发布说明和可安装文件。
 
 ---
 
-## Download and Install
+## 📦 下载安装
 
-### Latest Release
+### 最新版本
 
-- Release page: [GitHub Releases](https://github.com/LanceLeeA/router-plugin-hub/releases)
-- Current package: [SSR Plus+ Enhanced 20260404v4](https://github.com/LanceLeeA/router-plugin-hub/releases/tag/ssrplus-enhanced-20260404v4)
-- Direct installer: [ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260404v4.run](https://github.com/LanceLeeA/router-plugin-hub/releases/download/ssrplus-enhanced-20260404v4/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260404v4.run)
+| 项目 | 内容 |
+|------|------|
+| 版本 | **20260413** |
+| 平台 | GL-BE3600 / aarch64_cortex-a53 / OpenWrt r126 |
+| 大小 | ~52 MB |
+| 下载 | [GitHub Releases](https://github.com/vansteebot/router-plugin-hub/releases) |
 
-### iStore Installation
+### 安装方式
 
-For compatible soft-router environments:
+**方式一：SSH 命令行安装**
+```bash
+# 上传到路由器
+scp ssrp_*.run root@192.168.8.1:/tmp/
 
-1. Download the `.run` package from GitHub Releases.
-2. Open `iStore` on the router.
-3. Upload the `.run` package manually.
-4. Install it directly from iStore.
+# SSH 登录后执行
+chmod +x /tmp/ssrp_*.run && /tmp/ssrp_*.run
+```
 
-## Preview
-
-### What you get in this package
-
-- A cleaner `ShadowsocksR Plus+` client dashboard with compact status cards
-- Async apply / rebuild flows with safer button locking
-- Node list helpers, batch latency checks, and controlled auto-switch support
-- Full `.run` package release workflow for soft-router / iStore upload installs
-
-### Quick preview links
-
-- [SSR Plus+ package page](https://github.com/LanceLeeA/router-plugin-hub/tree/main/packages/ssrplus-enhanced)
-- [OpenClash package page](https://github.com/LanceLeeA/router-plugin-hub/tree/main/packages/openclash-enhanced)
-- [Install guide](https://github.com/LanceLeeA/router-plugin-hub/blob/main/docs/install.md)
-- [Release notes](https://github.com/LanceLeeA/router-plugin-hub/tree/main/docs/releases)
-
-### 中文预览
-
-- 更紧凑的 `ShadowsocksR Plus+` 客户端状态区
-- 更安全的异步保存、生效、重建流程
-- 节点列表批量测速与受控自动切换
-- 可直接用于软路由 `iStore` 上传安装的完整 `.run` 包
-
-### 中文快速说明
-
-- `.run` 安装包请从 [GitHub Releases](https://github.com/LanceLeeA/router-plugin-hub/releases) 下载
-- 对于兼容的软路由环境，可在 `iStore` 中直接上传并安装
-- 当前推荐安装包：
-  [ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260404v4.run](https://github.com/LanceLeeA/router-plugin-hub/releases/download/ssrplus-enhanced-20260404v4/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260404v4.run)
+**方式二：iStore 上传安装**
+1. 从 GitHub Releases 下载 `.run` 安装包
+2. 在路由器 iStore 中手动上传
+3. 直接安装即可
 
 ---
 
-## 中文简介
+## ✨ 功能特性
 
-`Router Plugin Hub` 是一个面向路由器插件增强开发的总仓库，用来统一管理插件源码、打包脚本、发布说明和可安装文件。
+### 核心功能
+- 🔧 **节点选择修复** — 下拉菜单选择节点不再跳回"停用"
+- 🚀 **异步应用流程** — 更安全的保存/生效/重建流程，状态实时反馈
+- 📊 **可靠测速** — 基于 tcping-simple，无需额外依赖，CGI 环境下稳定工作
+- 🛡️ **防断网保护** — 自动确保 `server_subscribe.ss_type=ss-rust`，防止代理二进制未启动导致全网断网
+- 🌐 **DNS 安全默认值** — 自动设置 `pdnsd_enable=2` + `tunnel_forward=8.8.8.8:53` + `safe_dns_tcp=1`
 
-这个仓库适合持续维护以下内容：
+### 节点导入
+- 📥 **SS 节点批量导入** — 支持 `ss://` 链接，一行一个，TXT 文件上传或直接粘贴
+- 📥 **Trojan 节点批量导入** — 支持 `trojan://` 链接，自动通过 xray 运行（无需原生 trojan 二进制）
+- 🔗 **订阅链接解析** — 支持从订阅 URL 拉取、base64 解码后批量导入
+- 📋 **批量选择/删除** — 服务器节点列表支持全选、批量删除
 
-- `SSR Plus+` 增强版
-- 未来的 `OpenClash` 增强版
-- 路由器排障、恢复、导入导出相关脚本
-- GitHub Releases 发布资料与安装包构建流程
-
----
-
-## Quick Links
-
-- [Repository](https://github.com/LanceLeeA/router-plugin-hub)
-- [Packages](https://github.com/LanceLeeA/router-plugin-hub/tree/main/packages)
-- [ShadowsocksR Plus](https://github.com/LanceLeeA/router-plugin-hub/tree/main/packages/ssrplus-enhanced)
-- [OpenClash](https://github.com/LanceLeeA/router-plugin-hub/tree/main/packages/openclash-enhanced)
-- [Releases](https://github.com/LanceLeeA/router-plugin-hub/releases)
-- [Release Notes](https://github.com/LanceLeeA/router-plugin-hub/tree/main/docs/releases)
-- [Install Guide](https://github.com/LanceLeeA/router-plugin-hub/blob/main/docs/install.md)
+### 稳定性
+- ⚡ **安装容错** — opkg 仓库不可达时不会中断安装
+- 🔄 **配置自动修复** — 每次应用时自动检查并补全关键配置项
+- 📶 **IPv6 安全默认** — 自动关闭 IPv6 代理，避免泄漏
 
 ---
 
-## Repository Layout
+## 📋 更新日志 (20260413)
+
+| 提交 | 说明 |
+|------|------|
+| `9128e73` | 支持 trojan:// 节点导入（通过 xray） |
+| `8c517ea` | 修复断网：确保 ss_type=ss-rust + DNS 安全默认值 |
+| `5f0e2a8` | 测速改用 tcping-simple（无需 nping） |
+| `867a624` | 测速改用 nping + 安装脚本容错 |
+| `4ed5705` | 修复导入脚本 end→fi 语法错误 |
+| `394bdd5` | 修复节点选择/应用状态 + 批量删除功能 |
+
+完整更新说明：[docs/releases/ssrplus-enhanced-20260413.md](docs/releases/ssrplus-enhanced-20260413.md)
+
+---
+
+## 🗂️ 仓库结构
 
 ```text
 router-plugin-hub/
 ├─ packages/
-│  ├─ ssrplus-enhanced/
-│  └─ openclash-enhanced/
+│  ├─ ssrplus-enhanced/     # SSR Plus+ 增强版源码
+│  └─ openclash-enhanced/   # OpenClash（预留）
 ├─ docs/
-│  └─ releases/
+│  ├─ releases/             # 版本更新说明
+│  └─ install.md            # 安装指南
+├─ scripts/                 # 工具脚本
 └─ README.md
 ```
 
-### Packages
+### 当前维护包
 
-- `packages/ssrplus-enhanced`
-  Enhanced SSR Plus+ source, LuCI templates, runtime helpers, packaging scripts, and verification tools.
-- `packages/openclash-enhanced`
-  Reserved for future OpenClash-related customization work.
-
-### Docs
-
-- `docs/releases`
-  Human-readable release notes and GitHub release drafts.
+- **`packages/ssrplus-enhanced`** — SSR Plus+ 增强版
+  - LuCI 界面优化（状态卡片、节点管理）
+  - 异步保存/生效流程
+  - SS / Trojan 节点导入工具
+  - 自动切换与监控
+  - IPv6 / DNS 安全控制
+  - `.run` 完整打包构建脚本
 
 ---
 
-## Current Maintained Package
+## 🔗 快速链接
 
-The package currently under active maintenance is:
-
-- `packages/ssrplus-enhanced`
-
-## Package Index
-
-### ShadowsocksR Plus
-
-- Source path: `packages/ssrplus-enhanced`
-- Purpose:
-  - enhanced LuCI status and control UI
-  - safer async apply and restart flow
-  - SS import and packaging helpers
-  - auto-switch tuning and monitoring
-  - IPv6 mode control with safe defaults
-
-### OpenClash
-
-- Source path: `packages/openclash-enhanced`
-- Purpose:
-  - future OpenClash enhancement modules
-  - configuration import/export helpers
-  - DNS / IPv6 safety controls
-  - packaging and release notes
-
-### Current Focus
-
-The ShadowsocksR Plus enhancement work currently includes:
-
-- improved LuCI status and control UI
-- safer async apply and restart flow
-- TXT-based `ss://` import tooling
-- auto-switch tuning and monitoring
-- cleaner recovery controls for unstable proxy states
-- IPv6 mode control with safe defaults for proxy environments
+- [📦 GitHub Releases（下载安装包）](https://github.com/vansteebot/router-plugin-hub/releases)
+- [📁 SSR Plus+ 源码](https://github.com/vansteebot/router-plugin-hub/tree/main/packages/ssrplus-enhanced)
+- [📖 安装指南](https://github.com/vansteebot/router-plugin-hub/blob/main/docs/install.md)
+- [📋 更新说明](https://github.com/vansteebot/router-plugin-hub/tree/main/docs/releases)
 
 ---
 
-## Latest Known Full Installer
+## 发布流程
 
-- Package: `ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260404v4.run`
-- Size: about `54.37 MB`
-- Type: full upstream-style `.run` package
-- Download location: GitHub Releases
-- Recommended distribution: attach the `.run` package to GitHub Releases, not to git history
-
-### Where To Download
-
-The `.run` installer should be downloaded from:
-
-- [GitHub Releases](https://github.com/LanceLeeA/router-plugin-hub/releases)
-
-This repository keeps source code, build scripts, and release notes in git.
-Large installable `.run` artifacts should be distributed through the Releases page.
-
-### iStore Installation
-
-For soft-router environments, this full `.run` package is intended to be used as a directly installable package through iStore manual upload / installation workflows.
-
-中文说明：
-
-- `.run` 安装包请从 GitHub Releases 下载
-- 下载后可在软路由 `iStore` 中直接上传安装
-- 仓库本身主要保存源码、打包脚本和发布说明，不建议把大体积 `.run` 文件反复提交到 git 历史中
-
-### Highlights
-
-- enhanced SSR Plus+ UI and controls
-- safer async apply flow
-- hard cleanup and rebuild actions
-- auto-switch tuning
-- IPv6 mode control with safe defaults
+1. 在 `packages/ssrplus-enhanced/` 下修改源码
+2. 运行 `build-full-package-from-upstream.ps1` 构建 `.run` 安装包
+3. 在 `docs/releases/` 下编写更新说明
+4. 通过 GitHub Releases 上传 `.run` 文件（不提交到 git 历史）
 
 ---
 
-## Release Workflow
+## 计划扩展
 
-1. Make changes inside a package folder.
-2. Build a full `.run` installer from the package scripts.
-3. Record release notes in `docs/releases`.
-4. Upload the installer to GitHub Releases.
-
-### Recommended Rule
-
-Keep source code, scripts, docs, and release notes in git.
-
-Attach large `.run` binaries to GitHub Releases instead of committing them repeatedly into repository history.
-
----
-
-## Why This Repository Exists
-
-Managing router plugin customization across scattered folders becomes hard to maintain. This repository provides:
-
-- one home for plugin source changes
-- one place for release notes and packaging logic
-- a clean structure for future expansion beyond SSR Plus+
-- a reusable workflow for publishing installable router packages
-
----
-
-## Planned Expansion
-
-Future work may include:
-
-- OpenClash enhancement modules
-- shared router diagnostics helpers
-- unified installer and release metadata
-- per-package docs and recovery guides
-
----
-
-## Chinese Quick Summary
-
-如果你是中文用户，可以把这个仓库理解成：
-
-- 一个总分类仓库
-- 里面按插件分目录
-- 当前重点维护 `SSR Plus+`
-- 后续可以继续增加 `OpenClash` 等插件增强内容
-- 安装包建议通过 GitHub Releases 发布
+- OpenClash 增强模块
+- 路由器诊断工具集
+- 统一安装器和元数据
+- 更多路由器型号支持
