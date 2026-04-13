@@ -3,6 +3,7 @@
 	var ssrStatusInfoUrl = '<%=url([[admin]], [[services]], [[shadowsocksr]], [[status_info]])%>';
 	var ssrNoticePendingKey = 'ssrplus_notice_pending';
 	var ssrNoticeSeenKey = 'ssrplus_notice_seen';
+	var ssrNoticeBaseKey = 'ssrplus_notice_base';
 	var ssrTerminalPhases = {
 		done: true,
 		verify_warn: true,
@@ -77,6 +78,7 @@
 	function ssrServerToolsArmNotice() {
 		sessionStorage.setItem(ssrNoticePendingKey, '1');
 		sessionStorage.removeItem(ssrNoticeSeenKey);
+		sessionStorage.removeItem(ssrNoticeBaseKey);
 	}
 
 	function ssrServerToolsMaybeNotify(data) {
@@ -87,10 +89,19 @@
 			return;
 		}
 		var signature = [data.phase || '', data.active || '', data.server || '', data.port || '', data.time || ''].join('|');
+		var baseSignature = sessionStorage.getItem(ssrNoticeBaseKey);
+		if (!baseSignature) {
+			sessionStorage.setItem(ssrNoticeBaseKey, signature);
+			return;
+		}
+		if (signature === baseSignature) {
+			return;
+		}
 		if (sessionStorage.getItem(ssrNoticeSeenKey) === signature) {
 			return;
 		}
 		sessionStorage.setItem(ssrNoticeSeenKey, signature);
+		sessionStorage.removeItem(ssrNoticeBaseKey);
 		sessionStorage.removeItem(ssrNoticePendingKey);
 		window.alert(ssrServerToolsBuildNotice(data));
 	}
@@ -151,7 +162,7 @@
 		var reader = new FileReader();
 		reader.onload = function(evt) {
 			document.getElementById('ssrplus_bulk_payload').value = evt.target.result || '';
-			ssrServerToolsWrite('info', { message: 'TXT 已读入，可直接点击批量导入' });
+			ssrServerToolsWrite('info', { message: 'TXT 已读入，可直接点击批量导入节点。' });
 		};
 		reader.readAsText(fileInput.files[0]);
 	}
@@ -167,8 +178,7 @@
 		button.disabled = true;
 		var label = button.innerHTML;
 		button.innerHTML = '正在导入...';
-		ssrServerToolsArmNotice();
-		ssrServerToolsWrite('info', { message: '正在导入节点并在后台重建代理链路', phase: 'queued' });
+		ssrServerToolsWrite('info', { message: '正在导入节点，默认只导入/更新节点，不会改动当前运行链路。', phase: 'import' });
 		fetch(ssrImportUrl, {
 			method: 'POST',
 			headers: {
@@ -187,6 +197,7 @@
 			}
 		}).catch(function(err) {
 			sessionStorage.removeItem(ssrNoticePendingKey);
+			sessionStorage.removeItem(ssrNoticeBaseKey);
 			ssrServerToolsWrite('error', { message: '导入请求失败: ' + err });
 		}).finally(function() {
 			button.disabled = false;
@@ -197,10 +208,10 @@
 
 	function ssrBindServerApplyButtons() {
 		var selectors = [
-			'input.cbi-button-apply',
-			'button.cbi-button-apply',
-			'input.cbi-button-save',
-			'button.cbi-button-save'
+			'.cbi-page-actions input.cbi-button-apply',
+			'.cbi-page-actions button.cbi-button-apply',
+			'.cbi-page-actions input.cbi-button-save',
+			'.cbi-page-actions button.cbi-button-save'
 		];
 		selectors.forEach(function(selector) {
 			document.querySelectorAll(selector).forEach(function(button) {
@@ -211,7 +222,7 @@
 				button.addEventListener('click', function() {
 					ssrServerToolsArmNotice();
 					ssrServerToolsWrite('info', {
-						message: '配置已保存，后台正在生效',
+						message: '配置已提交，后台正在生效。',
 						phase: 'queued'
 					});
 				});
@@ -229,7 +240,7 @@
 
 	document.addEventListener('DOMContentLoaded', function() {
 		ssrBindServerApplyButtons();
-		ssrServerToolsWrite('info', { message: '支持上传 txt、粘贴多条 ss://，或直接读取 /root/ssrplus-txt 目录' });
+		ssrServerToolsWrite('info', { message: '支持上传 txt、粘贴多条 ss://，或直接读取 /root/ssrplus-txt 目录。批量导入默认只导入/更新节点，不会自动切换当前节点。' });
 		ssrPollServerStatus();
 		XHR.poll(4, ssrStatusInfoUrl, null, function(x, data) {
 			if (x && x.status === 200 && data) {

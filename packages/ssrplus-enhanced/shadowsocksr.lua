@@ -39,6 +39,7 @@ function index()
 	entry({"admin", "services", "shadowsocksr", "export_installer"}, call("export_installer")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "export_windows_recover"}, call("export_windows_recover")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "delete"}, call("act_delete"))
+	entry({"admin", "services", "shadowsocksr", "delete_selected"}, call("act_delete_selected")).leaf = true
 	entry({'admin', 'services', "shadowsocksr", 'ip'}, call('check_ip')) -- 获取ip情况
 		--[[Backup]]
 	entry({"admin", "services", "shadowsocksr", "backup"}, call("create_backup")).leaf = true
@@ -490,7 +491,7 @@ build_status_info = function()
 	local info = read_status_file() or {}
 	local auto_switch = build_auto_switch_state(cursor)
 	local ipv6 = get_ipv6_state(cursor)
-	local recorded_section = normalize_server_section(info.active_section)
+	local recorded_section = normalize_server_section(cursor, info.active_section)
 	if (recorded_section ~= "" and recorded_section ~= active.section)
 		or (info.disabled and active.section ~= "nil")
 	then
@@ -673,8 +674,11 @@ local function resolve_ipv4(domain)
 	if not domain or domain == "" then
 		return ""
 	end
-	for _, resolver in ipairs({ "119.29.29.29", "223.5.5.5", "114.114.114.114", "127.0.0.1" }) do
-		local output = luci.sys.exec("nslookup " .. shell_quote(domain) .. " " .. resolver .. " 2>/dev/null")
+	if domain:match("^%d+%.%d+%.%d+%.%d+$") then
+		return domain
+	end
+	for _, resolver in ipairs({ "119.29.29.29", "223.5.5.5", "127.0.0.1" }) do
+		local output = luci.sys.exec("timeout 3 nslookup " .. shell_quote(domain) .. " " .. resolver .. " 2>/dev/null")
 		local answer = false
 		for line in output:gmatch("[^\r\n]+") do
 			if line:match("^Name:") or line:match("^[Nn]on%-authoritative answer:") then
@@ -687,11 +691,19 @@ local function resolve_ipv4(domain)
 			end
 		end
 	end
-	local fallback = trim(luci.sys.exec("resolveip -4 -t 3 " .. shell_quote(domain) .. " 2>/dev/null | awk 'NR==1{print}'"))
+	local fallback = trim(luci.sys.exec("resolveip -4 -t 2 " .. shell_quote(domain) .. " 2>/dev/null | awk 'NR==1{print}'"))
 	if fallback ~= "" then
 		return fallback
 	end
-	return trim(luci.sys.exec("curl -fsSL " .. shell_quote("http://119.29.29.29/d?dn=" .. domain) .. " 2>/dev/null | awk -F ';' '{print $1}'"))
+	fallback = trim(luci.sys.exec("timeout 3 curl -fsSL " .. shell_quote("http://119.29.29.29/d?dn=" .. domain) .. " 2>/dev/null | awk -F ';' '{print $1}'"))
+	if fallback ~= "" and fallback:match("^%d+%.%d+%.%d+%.%d+$") then
+		return fallback
+	end
+	fallback = trim(luci.sys.exec("getent ahostsv4 " .. shell_quote(domain) .. " 2>/dev/null | awk 'NR==1{print $1}'"))
+	if fallback ~= "" and fallback:match("^%d+%.%d+%.%d+%.%d+$") then
+		return fallback
+	end
+	return ""
 end
 
 local function cached_ipv4_for_domain(domain)
@@ -818,6 +830,10 @@ function act_ping()
 		end
 		socket:close()
 
+		if not e.socket and target ~= "" then
+			e.socket = luci.sys.call("nc -w 3 -z " .. shell_quote(target) .. " " .. tostring(port) .. " >/dev/null 2>&1") == 0
+		end
+
 		local ping_output = luci.sys.exec("ping -c 1 -W 1 " .. shell_quote(target) .. " 2>/dev/null")
 		e.ping = parse_latency_ms(ping_output)
 
@@ -902,9 +918,15 @@ end
 function act_apply_sync()
 	local section = luci.http.formvalue("section")
 	local cursor = require "luci.model.uci".cursor()
-	if section and section ~= "" then
+	local global = cursor:get_first("shadowsocksr", "global")
+	if not global then
+		cursor:set("shadowsocksr", "global", "global", "global")
+		cursor:commit("shadowsocksr")
+		global = cursor:get_first("shadowsocksr", "global")
+	end
+	if section and section ~= "" and global then
 		section = normalize_server_section(cursor, section)
-		cursor:set("shadowsocksr", "@global[0]", "global_server", section)
+		cursor:set("shadowsocksr", global, "global_server", section)
 		cursor:commit("shadowsocksr")
 	end
 	apply_stability_preset(cursor)
@@ -1008,12 +1030,15 @@ function act_import_ss()
 		nixio.fs.remove(temp_input)
 	end
 	if ret == 0 then
-		local result = queue_sync_apply("import", "节点已导入，后台正在重建代理链路")
-		result.path = input_path
-		result.preferred = preferred
-		result.output = output
-		result.message = "导入完成，节点已重建并重新生效"
-		write_json(result)
+		write_json({
+			ok = true,
+			phase = "import",
+			message = "导入完成，当前运行链路未改动。如需切换，请在“客户端”或“服务器节点”页手动应用。",
+			time = now_string(),
+			path = input_path,
+			preferred = preferred,
+			output = output
+		})
 		return
 	end
 	write_json({
@@ -1030,6 +1055,35 @@ end
 function act_delete()
 	luci.sys.call("/etc/init.d/shadowsocksr restart &")
 	luci.http.redirect(luci.dispatcher.build_url("admin", "services", "shadowsocksr", "servers"))
+end
+
+function act_delete_selected()
+	local sections_raw = luci.http.formvalue("sections") or ""
+	local cursor = require "luci.model.uci".cursor()
+	local global_server = cursor:get_first("shadowsocksr", "global", "global_server", "nil")
+	local deleted = 0
+	local skipped = 0
+	for section in sections_raw:gmatch("[^,]+") do
+		section = section:gsub("^%s+", ""):gsub("%s+$", "")
+		if section ~= "" then
+			if section == global_server then
+				skipped = skipped + 1
+			elseif cursor:get("shadowsocksr", section) then
+				cursor:delete("shadowsocksr", section)
+				deleted = deleted + 1
+			end
+		end
+	end
+	if deleted > 0 then
+		cursor:commit("shadowsocksr")
+	end
+	write_json({
+		ok = true,
+		deleted = deleted,
+		skipped = skipped,
+		message = string.format("已删除 %d 个节点", deleted) ..
+			(skipped > 0 and string.format("，跳过 %d 个（当前活跃节点）", skipped) or "")
+	})
 end
 
 function get_log()

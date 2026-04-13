@@ -272,7 +272,15 @@ node.render = function(self, section, scope)
 	Button.render(self, section, scope)
 end
 node.write = function(self, section)
-	uci:set("shadowsocksr", '@global[0]', 'global_server', section)
+	local global = uci:get_first("shadowsocksr", "global")
+	if not global then
+		uci:set("shadowsocksr", "global", "global", "global")
+		uci:commit("shadowsocksr")
+		global = uci:get_first("shadowsocksr", "global")
+	end
+	if global then
+		uci:set("shadowsocksr", global, "global_server", section)
+	end
 	uci:save("shadowsocksr")
 	uci:commit("shadowsocksr")
 	local alias = uci:get("shadowsocksr", section, "alias") or section

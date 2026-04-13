@@ -48,6 +48,77 @@
 		button.disabled = false;
 	}
 
+	function ssrMapForm() {
+		return document.querySelector('form.cbi-map');
+	}
+
+	function ssrMainServerSelect() {
+		return document.querySelector('select[name$=".global_server"]');
+	}
+
+	function ssrEnsureApplyTargetInput() {
+		var form = ssrMapForm();
+		if (!form) {
+			return null;
+		}
+		var input = form.querySelector('input[name="ssrplus_apply_target"]');
+		if (!input) {
+			input = document.createElement('input');
+			input.type = 'hidden';
+			input.name = 'ssrplus_apply_target';
+			input.value = '';
+			form.appendChild(input);
+		}
+		return input;
+	}
+
+	function ssrRememberApplyTarget() {
+		var input = ssrEnsureApplyTargetInput();
+		var select = ssrMainServerSelect();
+		if (!input) {
+			return;
+		}
+		input.value = select ? (select.value || '') : '';
+	}
+
+	function ssrClearApplyTarget() {
+		var input = ssrEnsureApplyTargetInput();
+		if (input) {
+			input.value = '';
+		}
+	}
+
+	function ssrBindClientSubmitButtons() {
+		var applySelectors = [
+			'.cbi-page-actions input.cbi-button-apply',
+			'.cbi-page-actions button.cbi-button-apply'
+		];
+		var saveSelectors = [
+			'.cbi-page-actions input.cbi-button-save',
+			'.cbi-page-actions button.cbi-button-save'
+		];
+
+		document.querySelectorAll(applySelectors.join(',')).forEach(function(button) {
+			if (!button || button.getAttribute('data-ssrplus-client-apply') === '1') {
+				return;
+			}
+			button.setAttribute('data-ssrplus-client-apply', '1');
+			button.addEventListener('click', function() {
+				ssrRememberApplyTarget();
+			});
+		});
+
+		document.querySelectorAll(saveSelectors.join(',')).forEach(function(button) {
+			if (!button || button.getAttribute('data-ssrplus-client-save') === '1') {
+				return;
+			}
+			button.setAttribute('data-ssrplus-client-save', '1');
+			button.addEventListener('click', function() {
+				ssrClearApplyTarget();
+			});
+		});
+	}
+
 	function ssrIsBusy(data) {
 		return !!(data && data.phase && ssrBusyPhases[data.phase]);
 	}
@@ -353,6 +424,10 @@
 		return ssrPostAction(ssrToggleIpv6Url, { mode: mode }, button, labels[mode] || '正在更新 IPv6...');
 	}
 
+	window.addEventListener('load', function() {
+		ssrEnsureApplyTargetInput();
+		ssrBindClientSubmitButtons();
+	});
 	window.setInterval(ssrRefreshStatus, 3000);
 	window.setTimeout(ssrRefreshStatus, 200);
 //]]></script>
