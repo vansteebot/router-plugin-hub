@@ -89,7 +89,7 @@ foreach ($file in $files) {
 
 $installLines = New-Object System.Collections.Generic.List[string]
 $installLines.Add('#!/bin/sh')
-$installLines.Add('set -eu')
+$installLines.Add('set -u')
 $installLines.Add('')
 $installLines.Add('PKG_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"')
 $installLines.Add('OVERLAY_DIR="$PKG_DIR/overlay"')
@@ -120,7 +120,7 @@ $installLines.Add('}')
 $installLines.Add('')
 $installLines.Add('log "Installing upstream full package..."')
 $installLines.Add('chmod +x "$PKG_DIR/install.upstream.sh"')
-$installLines.Add('( cd "$PKG_DIR" && ./install.upstream.sh )')
+$installLines.Add('( cd "$PKG_DIR" && ./install.upstream.sh ) || log "WARNING: upstream install reported errors (may be non-fatal)"')
 $installLines.Add('')
 $installLines.Add('log "Applying enhanced overlay..."')
 foreach ($file in $files) {

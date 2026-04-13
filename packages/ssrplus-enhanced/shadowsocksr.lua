@@ -822,26 +822,15 @@ function act_ping()
 		e.socket = string.match(result, "http_code=(%d+)") == "101"
 		e.ping = parse_latency_ms(result)
 	else
-		local socket = nixio.socket("inet", "stream")
-		socket:setopt("socket", "rcvtimeo", 3)
-		socket:setopt("socket", "sndtimeo", 3)
 		if target ~= "" then
-			e.socket = socket:connect(target, port) and true or false
+			local nping_out = luci.sys.exec("timeout 5 nping --tcp-connect -c 1 -p " .. tostring(port) .. " " .. shell_quote(target) .. " 2>&1")
+			e.socket = nping_out:match("Successful connections: 1") ~= nil
+			e.ping = parse_latency_ms(nping_out)
 		end
-		socket:close()
-
-		if not e.socket and target ~= "" then
-			e.socket = luci.sys.call("nc -w 3 -z " .. shell_quote(target) .. " " .. tostring(port) .. " >/dev/null 2>&1") == 0
-		end
-
-		local ping_output = luci.sys.exec("ping -c 1 -W 1 " .. shell_quote(target) .. " 2>/dev/null")
-		e.ping = parse_latency_ms(ping_output)
 
 		if not e.ping then
-			local nping_output = luci.sys.exec(
-				"nping --udp -c 1 -p " .. tostring(port) .. " " .. shell_quote(target) .. " 2>/dev/null"
-			)
-			e.ping = parse_latency_ms(nping_output)
+			local ping_output = luci.sys.exec("ping -c 1 -W 1 " .. shell_quote(target) .. " 2>/dev/null")
+			e.ping = parse_latency_ms(ping_output)
 		end
 	end
 
