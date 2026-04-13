@@ -225,12 +225,32 @@ local function apply_stability_preset(cursor)
 		if not cursor:get("shadowsocksr", global, "switch_probe_port") or cursor:get("shadowsocksr", global, "switch_probe_port") == "" then
 			cursor:set("shadowsocksr", global, "switch_probe_port", "80")
 		end
+		-- DNS defaults: dns2socks mode (pdnsd_enable=2) with TCP DNS.
+		-- Without these the init script may use a DNS mode that doesn't work.
+		if not cursor:get("shadowsocksr", global, "pdnsd_enable") or cursor:get("shadowsocksr", global, "pdnsd_enable") == "" then
+			cursor:set("shadowsocksr", global, "pdnsd_enable", "2")
+		end
+		if not cursor:get("shadowsocksr", global, "tunnel_forward") or cursor:get("shadowsocksr", global, "tunnel_forward") == "" then
+			cursor:set("shadowsocksr", global, "tunnel_forward", "8.8.8.8:53")
+		end
+		if not cursor:get("shadowsocksr", global, "safe_dns_tcp") or cursor:get("shadowsocksr", global, "safe_dns_tcp") == "" then
+			cursor:set("shadowsocksr", global, "safe_dns_tcp", "1")
+		end
 	end
 	if access then
 		cursor:set("shadowsocksr", access, "router_proxy", "1")
 	end
 	if dnsmasq then
 		cursor:set("dhcp", dnsmasq, "filter_aaaa", "1")
+	end
+	-- Ensure server_subscribe.ss_type is set — without it the init script
+	-- cannot pick the right binary (sslocal vs ss-redir), causing断网.
+	local ss_sub = cursor:get_first("shadowsocksr", "server_subscribe")
+	if ss_sub then
+		local ss_type = cursor:get("shadowsocksr", ss_sub, "ss_type")
+		if not ss_type or ss_type == "" then
+			cursor:set("shadowsocksr", ss_sub, "ss_type", "ss-rust")
+		end
 	end
 	cursor:commit("shadowsocksr")
 	cursor:commit("dhcp")
@@ -911,6 +931,16 @@ function act_apply_sync()
 		section = normalize_server_section(cursor, section)
 		cursor:set("shadowsocksr", global, "global_server", section)
 		cursor:commit("shadowsocksr")
+	end
+	-- Ensure server_subscribe.ss_type exists — without it the init script
+	-- cannot determine which binary to start, causing full断网.
+	local ss_sub = cursor:get_first("shadowsocksr", "server_subscribe")
+	if ss_sub then
+		local ss_type = cursor:get("shadowsocksr", ss_sub, "ss_type")
+		if not ss_type or ss_type == "" then
+			cursor:set("shadowsocksr", ss_sub, "ss_type", "ss-rust")
+			cursor:commit("shadowsocksr")
+		end
 	end
 	apply_stability_preset(cursor)
 	write_json(queue_sync_apply(section and ("node:" .. section) or "apply", section and "节点已保存，后台正在切换代理链路" or "配置已保存，后台正在生效"))

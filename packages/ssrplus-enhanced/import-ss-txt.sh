@@ -259,6 +259,16 @@ done < "$PARSED_TSV"
 
 uci commit shadowsocksr
 
+# Ensure server_subscribe.ss_type is set — the init script reads this (NOT the per-node
+# has_ss_type) to decide which binary to start. Without it, sslocal never starts but
+# nftables redirect rules are still applied, causing complete internet loss.
+current_ss_type="$(uci -q get shadowsocksr.@server_subscribe[0].ss_type 2>/dev/null || true)"
+if [ -z "$current_ss_type" ]; then
+	uci set shadowsocksr.@server_subscribe[0].ss_type='ss-rust' 2>/dev/null || true
+	uci commit shadowsocksr 2>/dev/null || true
+	log "Set server_subscribe.ss_type=ss-rust (was missing)"
+fi
+
 log "Imported nodes: $COUNT"
 log "Created: $CREATED"
 log "Updated: $UPDATED"

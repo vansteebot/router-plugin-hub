@@ -477,6 +477,16 @@ function m.on_after_apply(self)
 		current_uci:set("shadowsocksr", "global", "global", "global")
 		current_uci:commit("shadowsocksr")
 	end
+	-- Ensure server_subscribe.ss_type is set — init script needs this to pick the right binary.
+	-- Without it, sslocal never starts but nftables rules redirect all traffic → no internet.
+	local ss_sub = current_uci:get_first("shadowsocksr", "server_subscribe")
+	if ss_sub then
+		local ss_type = current_uci:get("shadowsocksr", ss_sub, "ss_type")
+		if not ss_type or ss_type == "" then
+			current_uci:set("shadowsocksr", ss_sub, "ss_type", "ss-rust")
+			current_uci:commit("shadowsocksr")
+		end
+	end
 	local section = submitted_global_server() or current_global_server()
 	if section and section ~= "" and section ~= "nil" then
 		current_uci = require "luci.model.uci".cursor()
