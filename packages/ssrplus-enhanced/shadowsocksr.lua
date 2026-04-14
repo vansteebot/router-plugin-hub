@@ -236,9 +236,6 @@ local function apply_stability_preset(cursor)
 		if not cursor:get("shadowsocksr", global, "safe_dns_tcp") or cursor:get("shadowsocksr", global, "safe_dns_tcp") == "" then
 			cursor:set("shadowsocksr", global, "safe_dns_tcp", "1")
 		end
-		if not cursor:get("shadowsocksr", global, "chinadns_forward") or cursor:get("shadowsocksr", global, "chinadns_forward") == "" then
-			cursor:set("shadowsocksr", global, "chinadns_forward", "wan_114")
-		end
 	end
 	if access then
 		cursor:set("shadowsocksr", access, "router_proxy", "1")

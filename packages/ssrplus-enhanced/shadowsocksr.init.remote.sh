@@ -354,21 +354,25 @@ start_dns() {
 
 		if [ "$run_mode" = "router" ]; then
 			local chinadns="$(uci_get_by_type global chinadns_forward)"
-			if [ -n "$chinadns" ]; then
-				local wandns="$(ifstatus wan | jsonfilter -e '@["dns-server"][0]' || echo "119.29.29.29")"
-				case "$chinadns" in
-				"wan") chinadns="$wandns" ;;
-				"wan_114") chinadns="$wandns,114.114.114.114" ;;
-				esac
-
-				ln_start_bin $(first_type chinadns-ng) chinadns-ng -l $china_dns_port -4 china -p 3 -c ${chinadns/:/#} -t 127.0.0.1#$dns_port -N -f -r
-
-				cat <<-EOF >> "$TMP_DNSMASQ_PATH/chinadns_fixed_server.conf"
-					no-poll
-					no-resolv
-					server=127.0.0.1#$china_dns_port
-				EOF
+			# Auto-enable ChinaDNS when in router (bypass China) mode
+			if [ -z "$chinadns" ]; then
+				chinadns="wan_114"
+				uci_set_by_type global chinadns_forward "$chinadns"
+				uci commit shadowsocksr 2>/dev/null
 			fi
+			local wandns="$(ifstatus wan | jsonfilter -e '@["dns-server"][0]' || echo "119.29.29.29")"
+			case "$chinadns" in
+			"wan") chinadns="$wandns" ;;
+			"wan_114") chinadns="$wandns,114.114.114.114" ;;
+			esac
+
+			ln_start_bin $(first_type chinadns-ng) chinadns-ng -l $china_dns_port -4 china -p 3 -c ${chinadns/:/#} -t 127.0.0.1#$dns_port -N -f -r
+
+			cat <<-EOF >> "$TMP_DNSMASQ_PATH/chinadns_fixed_server.conf"
+				no-poll
+				no-resolv
+				server=127.0.0.1#$china_dns_port
+			EOF
 		fi
 	fi
 
