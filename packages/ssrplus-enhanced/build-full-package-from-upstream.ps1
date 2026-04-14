@@ -153,6 +153,7 @@ $installLines.Add('uci set shadowsocksr.@server_subscribe[0].allow_insecure=''1'
 $installLines.Add('uci set shadowsocksr.@global[0].pdnsd_enable=''2'' >/dev/null 2>&1 || true')
 $installLines.Add('uci set shadowsocksr.@global[0].tunnel_forward=''8.8.8.8:53'' >/dev/null 2>&1 || true')
 $installLines.Add('uci set shadowsocksr.@global[0].safe_dns_tcp=''1'' >/dev/null 2>&1 || true')
+$installLines.Add('uci set shadowsocksr.@global[0].chinadns_forward=''wan_114'' >/dev/null 2>&1 || true')
 $installLines.Add('uci set network.wan6.disabled=''1'' >/dev/null 2>&1 || true')
 $installLines.Add('uci set dhcp.lan.dhcpv6=''disabled'' >/dev/null 2>&1 || true')
 $installLines.Add('uci set dhcp.lan.ra=''disabled'' >/dev/null 2>&1 || true')
