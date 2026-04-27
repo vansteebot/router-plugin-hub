@@ -45,6 +45,27 @@ function Write-Utf8NoBom([string]$Path, [string]$Content) {
     [System.IO.File]::WriteAllText($Path, $Content, [System.Text.UTF8Encoding]::new($false))
 }
 
+# Copy a text file with LF normalization (CRLF -> LF) and strip BOM if any.
+# Linux-only consumers (sh, lua, LuCI templates) trip over CRLF:
+#   - LuCI's C-based template parser raises "unfinished string near ..." when an
+#     HTML-leading .htm (no <% block at start) has CRLF line endings.
+#   - /bin/sh interprets the trailing \r as part of arguments.
+function Copy-TextFile-Lf([string]$Source, [string]$Dest) {
+    $bytes = [System.IO.File]::ReadAllBytes($Source)
+    # Strip UTF-8 BOM if present
+    if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+        $bytes = $bytes[3..($bytes.Length - 1)]
+    }
+    # CRLF -> LF
+    $out = New-Object System.Collections.Generic.List[byte] $bytes.Length
+    for ($i = 0; $i -lt $bytes.Length; $i++) {
+        $b = $bytes[$i]
+        if ($b -eq 13 -and ($i + 1) -lt $bytes.Length -and $bytes[$i + 1] -eq 10) { continue }  # skip CR before LF
+        $out.Add($b)
+    }
+    [System.IO.File]::WriteAllBytes($Dest, $out.ToArray())
+}
+
 function Assert-FileExists([string]$Path) {
     if (-not (Test-Path $Path)) {
         throw "Missing required file: $Path"
@@ -84,7 +105,7 @@ foreach ($file in $files) {
     if ($targetDir) {
         New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
     }
-    Copy-Item -Force $sourcePath $targetPath
+    Copy-TextFile-Lf $sourcePath $targetPath
 }
 
 $installLines = New-Object System.Collections.Generic.List[string]
