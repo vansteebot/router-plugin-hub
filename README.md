@@ -15,7 +15,7 @@ Router Plugin Hub 是面向路由器插件增强开发的总仓库，统一管�
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | **20260413** |
+| 版本 | **20260508** |
 | 平台 | GL-BE3600 / aarch64_cortex-a53 / OpenWrt r126 |
 | 大小 | ~52 MB |
 | 下载 | [GitHub Releases](https://github.com/vansteebot/router-plugin-hub/releases) |
@@ -60,18 +60,16 @@ chmod +x /tmp/ssrp_*.run && /tmp/ssrp_*.run
 
 ---
 
-## 📋 更新日志 (20260413)
+## 📋 更新日志 (20260508)
 
 | 提交 | 说明 |
 |------|------|
-| `9128e73` | 支持 trojan:// 节点导入（通过 xray） |
-| `8c517ea` | 修复断网：确保 ss_type=ss-rust + DNS 安全默认值 |
-| `5f0e2a8` | 测速改用 tcping-simple（无需 nping） |
-| `867a624` | 测速改用 nping + 安装脚本容错 |
-| `4ed5705` | 修复导入脚本 end→fi 语法错误 |
-| `394bdd5` | 修复节点选择/应用状态 + 批量删除功能 |
+| `a751e9e` | 修复 VLESS 生效链路稳定性、DNS helper 检测误判与 gfw2ipset 大文件处理 |
+| `d32bd5e` | 修复节点切换 busy 闪烁，新增“单节点点击测速” |
+| `675f280` | 修复 LuCI 500（CRLF 行尾导致模板解析失败） |
+| `621be41` | 修复安装器 /tmp 残留导致内存泄漏 |
 
-完整更新说明：[docs/releases/ssrplus-enhanced-20260413.md](docs/releases/ssrplus-enhanced-20260413.md)
+完整更新说明：[docs/releases/ssrplus-enhanced-20260508.md](docs/releases/ssrplus-enhanced-20260508.md)
 
 ---
 
