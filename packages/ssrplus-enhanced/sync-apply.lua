@@ -289,6 +289,44 @@ local function is_running(pattern)
 	return tonumber(count) and tonumber(count) > 0
 end
 
+-- 主链路进程随节点类型变化：SS 多为 ss-redir；VLESS/VMess 等为 v2ray/xray。
+local function main_proxy_ready(section)
+	if not section or section == "" or section == "nil" then
+		return true
+	end
+	local stype = trim(uci:get("shadowsocksr", section, "type") or ""):lower()
+	if stype == "v2ray" then
+		return is_running("v2ray") or is_running("xray")
+	end
+	if stype == "trojan" then
+		return is_running("trojan") or is_running("trojan-go")
+	end
+	if stype == "hysteria" then
+		return is_running("hysteria") or is_running("hy2")
+	end
+	if stype == "naiveproxy" or stype == "naive" then
+		return is_running("naive")
+	end
+	return is_running("ss-redir") or is_running("ss-local") or is_running("ss-rust")
+end
+
+local function main_proxy_fail_hint(section)
+	local stype = trim(uci:get("shadowsocksr", section or "", "type") or ""):lower()
+	if stype == "v2ray" then
+		return "v2ray/xray 主进程未成功启动（VLESS/VMess 等不使用 ss-redir）"
+	end
+	if stype == "trojan" then
+		return "trojan 主进程未成功启动"
+	end
+	if stype == "hysteria" then
+		return "hysteria 主进程未成功启动"
+	end
+	if stype == "naiveproxy" or stype == "naive" then
+		return "naive 主进程未成功启动"
+	end
+	return "ss-redir 未成功启动"
+end
+
 local function dns_helper_name(mode)
 	local mapping = {
 		["1"] = "dns2tcp",
@@ -299,6 +337,30 @@ local function dns_helper_name(mode)
 		["6"] = "chinadns-ng",
 	}
 	return mapping[tostring(mode or "")]
+end
+
+-- UCI 的「DNS 解析方式」与实际进程可能不一致（例如界面选项仍是 dns2tcp，分流链路已跑 chinadns-ng）。
+local function dns_chain_ready(helper)
+	if not helper or helper == "" then
+		return true
+	end
+	if is_running(helper) then
+		return true
+	end
+	local fallbacks = {
+		"chinadns-ng",
+		"dns2socks",
+		"dns2socks-rust",
+		"dnsproxy",
+		"mosdns",
+		"dns2tcp",
+	}
+	for _, name in ipairs(fallbacks) do
+		if is_running(name) then
+			return true
+		end
+	end
+	return false
 end
 
 local function resolve_ipv4(domain)
@@ -546,21 +608,25 @@ local function wait_for_processes(active)
 	end
 	local helper = dns_helper_name(uci:get_first("shadowsocksr", "global", "pdnsd_enable", "0"))
 	local need_obfs = requires_obfs(active.section)
-	local deadline = os.time() + 25
+	-- 路由器切换链路时会重启 dns2tcp/chinadns-ng；低端设备上偶发 >25s 仍属正常，避免误判进入重试风暴
+	local deadline = os.time() + 45
 	while os.time() <= deadline do
-		local has_redir = is_running("ss-redir")
-		local has_dns = (not helper or helper == "") or is_running(helper)
+		local has_proxy = main_proxy_ready(active.section)
+		local has_dns = dns_chain_ready(helper)
 		local has_obfs = (not need_obfs) or is_running("obfs-local")
-		if has_redir and has_dns and has_obfs then
+		if has_proxy and has_dns and has_obfs then
 			return true, "ready", "代理链路已重建"
 		end
 		os.execute("sleep 1")
 	end
-	if not is_running("ss-redir") then
-		return false, "process", "ss-redir 未成功启动"
+	if not main_proxy_ready(active.section) then
+		return false, "process", main_proxy_fail_hint(active.section)
 	end
-	if helper and helper ~= "" and not is_running(helper) then
-		return false, "dns", helper .. " 未成功启动"
+	if not dns_chain_ready(helper) then
+		if helper and helper ~= "" then
+			return false, "dns", helper .. " 未启动，且未检测到 chinadns-ng/dns2socks 等 DNS 组件（请检查 SSR DNS 解析方式或依赖是否安装）"
+		end
+		return false, "dns", "DNS 转发组件未就绪"
 	end
 	if need_obfs and not is_running("obfs-local") then
 		return false, "plugin", "obfs-local 未成功启动"
@@ -614,7 +680,7 @@ local function hard_cleanup(reason)
 		reason = reason
 	})
 	call("/etc/init.d/shadowsocksr stop >/dev/null 2>&1 || true")
-	call("killall -q -9 ss-redir sslocal obfs-local dns2tcp dns2socks dns2socks-rust mosdns dnsproxy chinadns-ng ssr-switch microsocks xray >/dev/null 2>&1 || true")
+	call("killall -q -9 ss-redir sslocal ss-rust obfs-local dns2tcp dns2socks dns2socks-rust mosdns dnsproxy chinadns-ng ssr-switch microsocks v2ray xray trojan trojan-go hysteria hy2 naive >/dev/null 2>&1 || true")
 	call("rm -f /tmp/ssrplus-auto-switch.state >/dev/null 2>&1 || true")
 	call("rm -f /var/lock/ssr-switch.lock >/dev/null 2>&1 || true")
 	call("rm -f /var/run/ssr-rules-daemon.pid >/dev/null 2>&1 || true")
@@ -640,7 +706,7 @@ local function perform_restart(active, reason, opts)
 	})
 
 	if kill_before then
-		call("killall -q -9 ss-redir sslocal obfs-local dns2tcp dns2socks dns2socks-rust mosdns dnsproxy chinadns-ng ssr-switch >/dev/null 2>&1 || true")
+		call("killall -q -9 ss-redir sslocal ss-rust obfs-local dns2tcp dns2socks dns2socks-rust mosdns dnsproxy chinadns-ng ssr-switch v2ray xray trojan trojan-go hysteria hy2 naive >/dev/null 2>&1 || true")
 		call("sleep 1")
 	end
 	local ret = call("/etc/init.d/shadowsocksr " .. service_action .. " >" .. LOG_FILE .. " 2>&1")
@@ -729,7 +795,7 @@ local function run_main()
 	local active = get_active_node()
 	if active.section == "nil" then
 		call("/etc/init.d/shadowsocksr stop >/dev/null 2>&1 || true")
-		call("killall -q -9 ss-redir sslocal obfs-local dns2tcp dns2socks dns2socks-rust mosdns dnsproxy chinadns-ng >/dev/null 2>&1 || true")
+		call("killall -q -9 ss-redir sslocal ss-rust obfs-local dns2tcp dns2socks dns2socks-rust mosdns dnsproxy chinadns-ng v2ray xray trojan trojan-go hysteria hy2 naive >/dev/null 2>&1 || true")
 		local data = write_status({
 			ok = true,
 			phase = "disabled",

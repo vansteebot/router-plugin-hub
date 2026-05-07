@@ -108,6 +108,25 @@ local function is_process_running(pattern)
 	return tonumber(count) and tonumber(count) > 0 or false
 end
 
+-- SSR Plus+ may run different core binaries depending on node type (SS vs VLESS/VMess etc.)
+local function main_proxy_running()
+	for _, pattern in ipairs({
+		"ss-redir",
+		"ss-local",
+		"ss-rust",
+		"v2ray",
+		"xray",
+		"trojan",
+		"hysteria",
+		"naive",
+	}) do
+		if is_process_running(pattern) then
+			return true
+		end
+	end
+	return false
+end
+
 local function sync_apply_is_running()
 	local pid = trim(run_command("cat " .. shell_quote(SYNC_APPLY_LOCK_FILE)))
 	if pid == "" then
@@ -517,10 +536,10 @@ build_status_info = function()
 	then
 		info = {}
 	end
-	local ss_redir_running = is_process_running("ss-redir")
+	local proxy_running = main_proxy_running()
 	info.disabled = active.section == "nil"
-	info.stale_process = info.disabled and ss_redir_running or false
-	info.running = (not info.disabled) and ss_redir_running or false
+	info.stale_process = info.disabled and proxy_running or false
+	info.running = (not info.disabled) and proxy_running or false
 	info.active = active.alias
 	info.active_section = active.section
 	info.server = active.server
