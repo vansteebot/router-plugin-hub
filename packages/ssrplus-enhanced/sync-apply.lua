@@ -5,6 +5,7 @@ local nixio = require("nixio")
 local STATUS_FILE = "/tmp/ssrplus-action-status.json"
 local LOG_FILE = "/tmp/ssrplus-sync-apply.log"
 local LOCK_FILE = "/var/lock/ssrplus-sync-apply.lock"
+local LOCK_DIR = "/var/lock/ssrplus-sync-apply.lock.d"
 
 local function trim(value)
 	value = tostring(value or "")
@@ -56,16 +57,28 @@ local function write_status(data)
 end
 
 local function acquire_lock()
-	local existing = trim(exec("cat " .. shell_quote(LOCK_FILE)))
-	if existing ~= "" and call("kill -0 " .. existing .. " >/dev/null 2>&1") == 0 then
-		return false, existing
+	-- Atomic lock via mkdir to avoid racing writers.
+	for _ = 1, 2 do
+		if call("mkdir " .. shell_quote(LOCK_DIR) .. " >/dev/null 2>&1") == 0 then
+			write_file(LOCK_FILE, tostring(nixio.getpid()))
+			return true
+		end
+
+		local existing = trim(exec("cat " .. shell_quote(LOCK_FILE)))
+		if existing ~= "" and call("kill -0 " .. existing .. " >/dev/null 2>&1") == 0 then
+			return false, existing
+		end
+
+		-- Stale lock (pid missing): clean and retry once.
+		call("rm -f " .. shell_quote(LOCK_FILE) .. " >/dev/null 2>&1")
+		call("rmdir " .. shell_quote(LOCK_DIR) .. " >/dev/null 2>&1")
 	end
-	write_file(LOCK_FILE, tostring(nixio.getpid()))
-	return true
+	return false, "unknown"
 end
 
 local function release_lock()
 	call("rm -f " .. shell_quote(LOCK_FILE) .. " >/dev/null 2>&1")
+	call("rmdir " .. shell_quote(LOCK_DIR) .. " >/dev/null 2>&1")
 end
 
 local function read_status()

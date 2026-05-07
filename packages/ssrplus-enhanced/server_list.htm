@@ -67,6 +67,15 @@
 		cursor: move;
 		user-select: none;
 	}
+	.pingtime {
+		cursor: pointer;
+		text-decoration: underline dotted;
+	}
+	.pingtime.ssrplus-ping-click-disabled {
+		cursor: not-allowed;
+		text-decoration: none;
+		opacity: 0.65;
+	}
 </style>
 
 <script type="text/javascript">
@@ -109,6 +118,16 @@ window.addEventListener('load', function () {
 		if (stopButton) {
 			stopButton.disabled = !state.running || applyLocked;
 		}
+		setSinglePingClickable(!(state.running || applyLocked));
+	}
+
+	function setSinglePingClickable(enabled) {
+		doms.forEach(function(dom) {
+			if (!dom) {
+				return;
+			}
+			dom.classList.toggle('ssrplus-ping-click-disabled', !enabled);
+		});
 	}
 
 	function lockApplyControls(busy) {
@@ -298,6 +317,38 @@ window.addEventListener('load', function () {
 		return false;
 	}
 
+	function bindSinglePingClick() {
+		doms.forEach(function(dom, index) {
+			if (!dom || dom.getAttribute('data-ssrplus-single-ping-bound') === '1') {
+				return;
+			}
+			dom.setAttribute('data-ssrplus-single-ping-bound', '1');
+			dom.setAttribute('title', '点击单节点测速');
+			dom.addEventListener('click', function(ev) {
+				ev.preventDefault();
+				ev.stopPropagation();
+				if (applyLocked) {
+					setStatus('后台正在生效，请等待当前任务完成', 'warn');
+					return false;
+				}
+				if (state.running) {
+					setStatus('批量测速进行中，请先停止后再点单节点测速', 'warn');
+					return false;
+				}
+				if (dom.getAttribute('data-ssrplus-single-pinging') === '1') {
+					return false;
+				}
+				dom.setAttribute('data-ssrplus-single-pinging', '1');
+				setStatus('正在测速当前节点...', 'info');
+				pingOne(index).then(function() {
+					dom.removeAttribute('data-ssrplus-single-pinging');
+					setStatus('单节点测速完成', 'success');
+				});
+				return false;
+			});
+		});
+	}
+
 	function bindApplyButtonsPausePing() {
 		document.querySelectorAll('input.cbi-button-apply, button.cbi-button-apply, input.cbi-button-save, button.cbi-button-save, input.cbi-button-positive, button.cbi-button-positive').forEach(function(button) {
 			var isNodeApply = button.getAttribute('data-ssrplus-node-apply') === '1'
@@ -419,10 +470,12 @@ window.addEventListener('load', function () {
 	}
 
 	moveToolbarNearTable();
+	bindSinglePingClick();
 	bindNodeApplyButtons();
 	bindApplyButtonsPausePing();
 	refreshApplyLock();
 	window.setInterval(refreshApplyLock, 3000);
+	setSinglePingClickable(!(state.running || applyLocked));
 
 	// Batch select/delete
 	var batchSelectAllBtn = document.getElementById('ssrplus_batch_select_all');

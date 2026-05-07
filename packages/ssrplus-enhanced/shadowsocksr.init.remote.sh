@@ -142,12 +142,15 @@ del_cron() {
 }
 
 set_lock() {
-	exec 1000>"$LOCK_FILE"
-	flock -xn 1000
+	# BusyBox ash only supports low-numbered file descriptors.
+	# fd 1000 triggers "flock: 1000: Bad file descriptor" so locking
+	# silently fails and concurrent restart/start races appear.
+	exec 9>"$LOCK_FILE"
+	flock -xn 9
 }
 
 unset_lock() {
-	flock -u 1000
+	flock -u 9
 	rm -rf "$LOCK_FILE"
 }
 
@@ -1500,6 +1503,12 @@ start_rules() {
 	else
 		ARG_A=""
 	fi
+	# Ensure dnsmasq temp include dir exists before gfw2ipset writes
+	# gfw_base.conf/gfw_list.conf/blacklist_forward.conf.
+	# Without this, concurrent restart windows can produce:
+	# "can't create .../dnsmasq-ssrplus.d/...: nonexistent directory"
+	# then dnsmasq fails to start and node switching appears stuck/busy.
+	mkdir -p "$TMP_DNSMASQ_PATH"
 	/usr/share/shadowsocksr/gfw2ipset.sh
 	/usr/bin/ssr-rules \
 		-s "$server" \
