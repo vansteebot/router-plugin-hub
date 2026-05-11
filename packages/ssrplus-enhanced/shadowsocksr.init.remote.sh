@@ -324,6 +324,13 @@ start_dns() {
 			;;
 		6)
 			local chinadns_ng_proto="$(uci_get_by_type global chinadns_ng_proto)"
+			# Default upstream protocol to TCP when unset. Plain UDP queries to
+			# 1.1.1.1/8.8.8.8 from inside China get GFW-spoofed (www.google.com
+			# resolves to a Twitter IP, www.youtube.com to a Facebook IP), which
+			# makes Google/YouTube unreachable via HK exits even though the
+			# proxy itself works. TCP queries survive GFW spoofing. Users who
+			# specifically want UDP can still set chinadns_ng_proto=none.
+			[ -z "$chinadns_ng_proto" ] && chinadns_ng_proto="tcp"
 			local chinadns_ng_dns=""
 			# 遍历每个 DNS 服务器
 			IFS=','  # 设置分隔符为逗号
