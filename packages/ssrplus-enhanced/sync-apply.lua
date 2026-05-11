@@ -477,7 +477,10 @@ local function resolve_ipv4_stable(domain)
 	if not domain or domain == "" then
 		return ""
 	end
-	local resolvers = { "119.29.29.29", "223.5.5.5", "114.114.114.114", "127.0.0.1" }
+	-- 仅使用公网递归/HTTP DNS：不要向 127.0.0.1 解析节点域名。SSR 运行后本机 DNS 常经
+	-- dnsmasq/ChinadNS，对外国 VPS 主机名易产生污染，切换节点时会把错误 IP 写入 UCI 的 ip，
+	-- 导致代理连错地址（典型表现：第一次正常，换节点后谷歌打不开）。
+	local resolvers = { "119.29.29.29", "223.5.5.5", "114.114.114.114" }
 	for _, resolver in ipairs(resolvers) do
 		local output = exec("nslookup " .. shell_quote(domain) .. " " .. resolver)
 		local answer = false
@@ -492,11 +495,11 @@ local function resolve_ipv4_stable(domain)
 			end
 		end
 	end
-	local fallback = exec("resolveip -4 -t 3 " .. shell_quote(domain) .. " | awk 'NR==1{print}'")
-	if fallback ~= "" then
-		return fallback
+	local httpdns = exec("curl -fsSL " .. shell_quote("http://119.29.29.29/d?dn=" .. domain) .. " | awk -F ';' '{print $1}'")
+	if httpdns ~= "" then
+		return httpdns
 	end
-	return exec("curl -fsSL " .. shell_quote("http://119.29.29.29/d?dn=" .. domain) .. " | awk -F ';' '{print $1}'")
+	return exec("resolveip -4 -t 3 " .. shell_quote(domain) .. " | awk 'NR==1{print}'")
 end
 
 local function refresh_server_ip_cache(section)

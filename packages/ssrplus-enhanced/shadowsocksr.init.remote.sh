@@ -92,16 +92,17 @@ uci_get_by_cfgid() {
 get_host_ip() {
 	local host=$(uci_get_by_name $1 server)
 	local ip=$host
-	if [ -z "$(echo $host | grep -E "([0-9]{1,3}[\.]){3}[0-9]{1,3}")" ]; then
-		if [ "$host" == "${host#*:[0-9a-fA-F]}" ]; then
-			ip=$(nslookup "$host" 119.29.29.29 2>/dev/null | sed -n '/^Name:/,$s/.*Address[^:]*:[[:space:]]*\([0-9.][0-9.]*\).*/\1/p' | head -n1)
-			[ -z "$ip" ] && ip=$(nslookup "$host" 223.5.5.5 2>/dev/null | sed -n '/^Name:/,$s/.*Address[^:]*:[[:space:]]*\([0-9.][0-9.]*\).*/\1/p' | head -n1)
-			[ -z "$ip" ] && ip=$(nslookup "$host" 114.114.114.114 2>/dev/null | sed -n '/^Name:/,$s/.*Address[^:]*:[[:space:]]*\([0-9.][0-9.]*\).*/\1/p' | head -n1)
-			[ -z "$ip" ] && ip=$(nslookup "$host" 127.0.0.1 2>/dev/null | sed -n '/^Name:/,$s/.*Address[^:]*:[[:space:]]*\([0-9.][0-9.]*\).*/\1/p' | head -n1)
-			[ -z "$ip" ] && ip=$(resolveip -4 -t 3 $host | awk 'NR==1{print}')
-			[ -z "$ip" ] && ip=$(curl -sSL "http://119.29.29.29/d?dn=$host" | awk -F ';' '{print $1}')
+		if [ -z "$(echo $host | grep -E "([0-9]{1,3}[\.]){3}[0-9]{1,3}")" ]; then
+			if [ "$host" == "${host#*:[0-9a-fA-F]}" ]; then
+				ip=$(nslookup "$host" 119.29.29.29 2>/dev/null | sed -n '/^Name:/,$s/.*Address[^:]*:[[:space:]]*\([0-9.][0-9.]*\).*/\1/p' | head -n1)
+				[ -z "$ip" ] && ip=$(nslookup "$host" 223.5.5.5 2>/dev/null | sed -n '/^Name:/,$s/.*Address[^:]*:[[:space:]]*\([0-9.][0-9.]*\).*/\1/p' | head -n1)
+				[ -z "$ip" ] && ip=$(nslookup "$host" 114.114.114.114 2>/dev/null | sed -n '/^Name:/,$s/.*Address[^:]*:[[:space:]]*\([0-9.][0-9.]*\).*/\1/p' | head -n1)
+				# 不向 127.0.0.1 解析：SSR 已运行时易走 dnsmasq/ChinadNS，对外国节点域名可能污染，
+				# 切换节点后把错误 IP 写入 UCI，表现为谷歌等无法访问。
+				[ -z "$ip" ] && ip=$(curl -fsSL "http://119.29.29.29/d?dn=$host" | awk -F ';' '{print $1}')
+				[ -z "$ip" ] && ip=$(resolveip -4 -t 3 $host | awk 'NR==1{print}')
+			fi
 		fi
-	fi
 	[ -z "$ip" ] || uci_set_by_name $1 ip $ip
 	[ -n "$ip" ] || ip="$(uci_get_by_name $1 ip "ERROR")"
 
