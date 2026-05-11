@@ -28,14 +28,13 @@ nft list table ip ss_spec_mangle 2>&1 | grep -E 'tcp|redirect|tproxy'
 curl -s --max-time 8 https://api.ip.sb/ip   # 应为节点所在地区 IP, 不应为本机 WAN
 ```
 
-## 安装包（仅 LuCI/脚本覆盖层）
+## 安装包（完整合并包）
 
-- 使用 **`build-release-package.ps1`** 生成的 **`enhanced_overlay`** 包：体积约几十 KB,适用于**已经装过完整版**(20260511 或更早)的路由器上做增量更新。
-- 文件名：`ssrp_aarch64_cortex-a53-190_r126_enhanced_overlay_20260512.run`
-- 构建目录：`packages/ssrplus-enhanced/release/ssrp_aarch64_cortex-a53-190_r126_enhanced_overlay_20260512/`
-- SHA256：见同目录 `SHA256SUMS.txt`
-
-> **说明**：本次只发 overlay。要全新安装（路由器没有装过任何 SSR+），请用 `build-full-package-from-upstream.ps1` 重新打完整 `.run`。
+- 使用 **`build-full-package-from-upstream.ps1`** 生成（含上游 ipk + 本仓库增强层 + TCP 持久化校验 + cron 守护），体积约 **52MB**。
+- 文件名：`ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260512.run`
+- 构建目录：`packages/ssrplus-enhanced/release/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260512/`
+- SHA256：`20f5ab69030eacadddec650015674c4773f386a062d8baa3056bee8756b45517`（同目录 `SHA256SUMS.txt`）。
+- 已替代上一版 `ssrplus-enhanced-20260511`（该 release 已删除），本完整包包含其全部修复并叠加本次 TCP 持久化文件修复。
 
 ## 验证
 
