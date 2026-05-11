@@ -7,7 +7,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$packageBaseName = "ssrp_${Arch}_${BaseRelease}_enhanced_full_${Version}"
+# 注意：本脚本只打包 LuCI/脚本覆盖层（体积约几十 KB），不含上游 ipk/depends。
+# 面向「路由器已装官方 SSR+」的增量更新。完整离线安装包请用 build-full-package-from-upstream.ps1。
+$packageBaseName = "ssrp_${Arch}_${BaseRelease}_enhanced_overlay_${Version}"
 $releaseDir = Join-Path $OutputRoot $packageBaseName
 $installerPath = Join-Path $releaseDir ($packageBaseName + '.run')
 $shaPath = Join-Path $releaseDir 'SHA256SUMS.txt'
@@ -165,7 +167,7 @@ $stubLines = New-Object System.Collections.Generic.List[string]
 $stubLines.Add('#!/bin/sh')
 $stubLines.Add('set -eu')
 $stubLines.Add('')
-$stubLines.Add('label="SSR Plus+ Enhanced Full Installer"')
+$stubLines.Add('label="SSR Plus+ Enhanced overlay (LuCI/scripts only, not full ipk bundle)"')
 $stubLines.Add('TMPROOT=${TMPDIR:=/tmp}')
 $stubLines.Add('WORKDIR="$TMPROOT/ssrplus-enhanced-$$"')
 $stubLines.Add('cleanup() {')
@@ -194,7 +196,9 @@ Write-Utf8NoBom $shaPath "$hash  $([System.IO.Path]::GetFileName($installerPath)
 
 $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 $readme = @"
-# SSR Plus+ Enhanced Full Installer
+# SSR Plus+ Enhanced **Overlay** (LuCI/scripts only)
+
+This artifact is **not** a full offline bundle (no `luci-app-ssr-plus` ipk / `depends` tree). Size should be tens of KB. For a ~50MB+ **full** installer, build with `build-full-package-from-upstream.ps1`.
 
 - Version: $Version
 - Base release: $BaseRelease
@@ -204,8 +208,8 @@ $readme = @"
 
 ## Install
 
-1. Download the `.run` file from this release.
-2. Upload it to the router.
+1. Ensure upstream SSR Plus+ is already installed on the router.
+2. Upload this `.run` to the router.
 3. Run:
 
 ```sh

@@ -7,8 +7,11 @@
   - 将 **`http://119.29.29.29/d?dn=`** HTTP DNS 提前到 **`resolveip` 之前**，降低走系统 resolv.conf（多指向本机）时的污染风险。
   - `shadowsocksr.init.remote.sh` 中 `get_host_ip`：与上保持一致的解析顺序与注释说明。
 
-## 安装包
+## 安装包（完整合并包）
 
+- 使用 **`build-full-package-from-upstream.ps1`** 生成（含上游 ipk + 本仓库增强层），体积约 **52MB**。
 - 文件名：`ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run`
 - 构建目录：`packages/ssrplus-enhanced/release/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511/`
-- SHA256：`28feb7292556a1cba898bba88a6b67755f2664f10aa9dc859250c7321defa27c`（同目录 `SHA256SUMS.txt`）。
+- SHA256：`1f862ccdf28ed63ea8a51a6130479e0294f22839d4cfa7ec5470404fe0f3c1f5`（同目录 `SHA256SUMS.txt`）。
+
+> **说明**：若仅用 **`build-release-package.ps1`**，得到的是 **`enhanced_overlay_*.run`**（约几十 KB），**不是**含 ipk 的完整包；历史曾误用「full」命名，已在脚本中改为 `enhanced_overlay` 以免混淆。

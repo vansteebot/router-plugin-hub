@@ -14,8 +14,8 @@ Enhanced ShadowsocksR Plus package sources for GL.iNet/OpenWrt-style routers.
 
 ## Primary Build Scripts
 
-- `build-full-package-from-upstream.ps1`
-- `build-release-package.ps1`
+- **`build-full-package-from-upstream.ps1`** — **完整安装包**（约 50MB+）：解压上游 `.run`（含 `luci-app-ssr-plus` ipk、`depends` 等），再合并本仓库增强文件，输出文件名含 **`enhanced_full`**。给新机 / iStore「整包安装」用。
+- **`build-release-package.ps1`** — **轻量覆盖包**（约几十 KB）：只含 LuCI / `sync-apply.lua` / init / `ssr-rules` 等脚本，**不含 ipk**；输出文件名含 **`enhanced_overlay`**。仅适用于路由器 **已经安装过** 官方或上游 SSR+、只需打增强补丁的场景。
 
 ## Runtime Files Often Touched
 

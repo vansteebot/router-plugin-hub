@@ -17,9 +17,10 @@ Router Plugin Hub 是面向路由器插件增强开发的总仓库，统一管�
 |------|------|
 | 版本 | **20260511** |
 | 平台 | GL-BE3600 / aarch64_cortex-a53 / OpenWrt r126 |
+| 完整包体积 | 约 **52 MB**（`build-full-package-from-upstream.ps1`；含 ipk/depends） |
 | 安装包文件名 | `ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run` |
 | 本仓库构建路径 | `packages/ssrplus-enhanced/release/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run` |
-| 校验 | 同目录 `SHA256SUMS.txt` |
+| 校验 | 同目录 `SHA256SUMS.txt`（与发布说明一致） |
 | 下载 | [Release 页面](https://github.com/vansteebot/router-plugin-hub/releases/tag/ssrplus-enhanced-20260511) · [直链 `.run`](https://github.com/vansteebot/router-plugin-hub/releases/download/ssrplus-enhanced-20260511/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run) · [全部 Releases](https://github.com/vansteebot/router-plugin-hub/releases) |
 
 ### 安装方式
@@ -112,9 +113,9 @@ router-plugin-hub/
 ## 发布流程
 
 1. 在 `packages/ssrplus-enhanced/` 下修改源码
-2. 运行 `build-full-package-from-upstream.ps1` 构建 `.run` 安装包
+2. 发布 **完整** `.run`：运行 **`build-full-package-from-upstream.ps1`**（需本机已有上游 `ssrp_*.upstream.run`），得到约 **50MB+** 的 `enhanced_full_*.run`。**不要**用 `build-release-package.ps1` 代替发布物（该脚本仅生成约几十 KB 的 **`enhanced_overlay_*.run`** 覆盖层）。
 3. 在 `docs/releases/` 下编写更新说明
-4. 通过 GitHub Releases 上传 `.run` 文件（不提交到 git 历史）
+4. 通过 GitHub Releases 上传完整 `.run`（不提交到 git 历史）
 
 ---
 
