@@ -20,7 +20,7 @@ Router Plugin Hub 是面向路由器插件增强开发的总仓库，统一管�
 | 安装包文件名 | `ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run` |
 | 本仓库构建路径 | `packages/ssrplus-enhanced/release/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run` |
 | 校验 | 同目录 `SHA256SUMS.txt` |
-| 下载 | [GitHub Releases — 标签 ssrplus-enhanced-20260511](https://github.com/vansteebot/router-plugin-hub/releases/tag/ssrplus-enhanced-20260511) · [全部 Releases](https://github.com/vansteebot/router-plugin-hub/releases) |
+| 下载 | [Release 页面](https://github.com/vansteebot/router-plugin-hub/releases/tag/ssrplus-enhanced-20260511) · [直链 `.run`](https://github.com/vansteebot/router-plugin-hub/releases/download/ssrplus-enhanced-20260511/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run) · [全部 Releases](https://github.com/vansteebot/router-plugin-hub/releases) |
 
 ### 安装方式
 
