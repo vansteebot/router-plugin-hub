@@ -1452,6 +1452,20 @@ restore_from_persistence() {
 		return 1
 	fi
 
+	# AUTO-PATCH-TCP-VALIDATE — guard against a half-written persistence file.
+	# Observed bug: a previous save left only UDP rules in the persistence file
+	# (no `ss_spec_wan_fw_tcp` chain). Each subsequent restart "restored" the
+	# broken state, the TCP REDIRECT was never created, and all LAN TCP traffic
+	# leaked direct out the WAN (symptom: switching nodes has no effect, curl
+	# https://api.ip.sb/ip returns the user's ISP IP). Treat such a file as
+	# corrupt: wipe it and return failure so the caller falls through to a
+	# full rule regeneration.
+	if ! grep -q ss_spec_wan_fw_tcp "$NFTABLES_RULES_FILE" 2>/dev/null; then
+		loger 3 "Persistence file lacks TCP chain (corrupt), wiping and forcing regenerate"
+		rm -f "$NFTABLES_RULES_FILE"
+		return 1
+	fi
+
 	loger 6 "Restoring rules from persistence file"
 
 	# Cleanup existing rules

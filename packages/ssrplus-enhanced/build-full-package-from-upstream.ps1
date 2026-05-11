@@ -39,6 +39,7 @@ $files = @(
     @{ Source = 'shadowsocksr.init.remote.sh'; Target = '/etc/init.d/shadowsocksr';                                    Mode = '0755' }
     @{ Source = 'ssr-switch.remote.sh';        Target = '/usr/bin/ssr-switch';                                         Mode = '0755' }
     @{ Source = 'ssr-rules.remote.sh';         Target = '/usr/bin/ssr-rules';                                          Mode = '0755' }
+    @{ Source = 'ssrplus-persistence-check.cron';Target = '/etc/cron.d/ssrplus-persistence-check';                     Mode = '0644' }
 )
 
 function Write-Utf8NoBom([string]$Path, [string]$Content) {
@@ -193,6 +194,13 @@ $installLines.Add('rm -rf /tmp/luci-modulecache/* 2>/dev/null || true')
 $installLines.Add('/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true')
 $installLines.Add('sleep 2')
 $installLines.Add('/etc/init.d/uhttpd restart >/dev/null 2>&1 || true')
+$installLines.Add('# Reload cron so /etc/cron.d/ssrplus-persistence-check is picked up')
+$installLines.Add('/etc/init.d/cron reload >/dev/null 2>&1 || /etc/init.d/cron restart >/dev/null 2>&1 || true')
+$installLines.Add('# One-shot: wipe corrupt persistence file right now if present (TCP chain missing)')
+$installLines.Add('if [ -f /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft ] && ! grep -q ss_spec_wan_fw_tcp /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft; then')
+$installLines.Add('  rm -f /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft')
+$installLines.Add('  log "wiped corrupt persistence file (no TCP chain) — next ssr-rules run will regenerate"')
+$installLines.Add('fi')
 $installLines.Add('# Cleanup leftover ssrplus-enhanced-* dirs from previous installer runs')
 $installLines.Add('# (pre-v4 had `exec ./install.sh` which bypassed the EXIT trap, leaving 53MB+ per install)')
 $installLines.Add('TMPROOT=${TMPDIR:=/tmp}')

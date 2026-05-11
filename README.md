@@ -15,13 +15,14 @@ Router Plugin Hub 是面向路由器插件增强开发的总仓库，统一管�
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | **20260511** |
+| 版本 | **20260512** |
 | 平台 | GL-BE3600 / aarch64_cortex-a53 / OpenWrt r126 |
-| 完整包体积 | 约 **52 MB**（`build-full-package-from-upstream.ps1`；含 ipk/depends） |
-| 安装包文件名 | `ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run` |
-| 本仓库构建路径 | `packages/ssrplus-enhanced/release/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run` |
+| 本次包类型 | **Overlay**（LuCI/脚本覆盖层，几十 KB，适用于已装过 20260511 或更早完整版的路由器） |
+| 安装包文件名 | `ssrp_aarch64_cortex-a53-190_r126_enhanced_overlay_20260512.run` |
+| 本仓库构建路径 | `packages/ssrplus-enhanced/release/ssrp_aarch64_cortex-a53-190_r126_enhanced_overlay_20260512/ssrp_aarch64_cortex-a53-190_r126_enhanced_overlay_20260512.run` |
 | 校验 | 同目录 `SHA256SUMS.txt`（与发布说明一致） |
-| 下载 | [Release 页面](https://github.com/vansteebot/router-plugin-hub/releases/tag/ssrplus-enhanced-20260511) · [直链 `.run`](https://github.com/vansteebot/router-plugin-hub/releases/download/ssrplus-enhanced-20260511/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run) · [全部 Releases](https://github.com/vansteebot/router-plugin-hub/releases) |
+| 下载 | [Release 页面](https://github.com/vansteebot/router-plugin-hub/releases/tag/ssrplus-enhanced-20260512) · [直链 `.run`](https://github.com/vansteebot/router-plugin-hub/releases/download/ssrplus-enhanced-20260512/ssrp_aarch64_cortex-a53-190_r126_enhanced_overlay_20260512.run) · [全部 Releases](https://github.com/vansteebot/router-plugin-hub/releases) |
+| 上一版完整包 | [20260511 完整 .run（52 MB）](https://github.com/vansteebot/router-plugin-hub/releases/tag/ssrplus-enhanced-20260511) |
 
 ### 安装方式
 
@@ -63,15 +64,17 @@ chmod +x /tmp/ssrp_*.run && /tmp/ssrp_*.run
 
 ---
 
-## 📋 更新日志 (20260511)
+## 📋 更新日志 (20260512)
 
 | 说明 |
 |------|
-| 修复切换节点后通过 **127.0.0.1** 解析节点域名导致的 DNS 污染、UCI `ip` 写错、谷歌等无法打开（`sync-apply.lua` + `shadowsocksr.init.remote.sh`）。 |
+| **关键修复**：`ssr-rules` 持久化文件半残（只剩 UDP，丢 `ss_spec_wan_fw_tcp` 链）会被原样恢复，导致**所有 LAN TCP 流量直连出 WAN**——表象是切任何节点都不生效、状态页代理出口显示国内 IP、彻底清理并重启按钮在"运行中/停止中"间死循环。修复方案：恢复前校验 TCP 链 + `/etc/cron.d/ssrplus-persistence-check` 守护兜底 + 安装时一次性体检。 |
 
-完整更新说明：[docs/releases/ssrplus-enhanced-20260511.md](docs/releases/ssrplus-enhanced-20260511.md)
+完整更新说明：[docs/releases/ssrplus-enhanced-20260512.md](docs/releases/ssrplus-enhanced-20260512.md)
 
-历史版本：[docs/releases/ssrplus-enhanced-20260508.md](docs/releases/ssrplus-enhanced-20260508.md)
+历史版本：
+- [20260511](docs/releases/ssrplus-enhanced-20260511.md) — 切换节点经 127.0.0.1 解析导致 DNS 污染
+- [20260508](docs/releases/ssrplus-enhanced-20260508.md)
 
 ---
 

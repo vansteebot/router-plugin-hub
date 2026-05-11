@@ -1,0 +1,6 @@
+# SSR Plus+ Enhanced — persistence watchdog
+# Wipes a corrupt nftables persistence file (one missing the TCP forward chain).
+# Defensive companion to the AUTO-PATCH-TCP-VALIDATE check in /usr/bin/ssr-rules:
+# if anything ever writes a half-broken persistence file again, this cron entry
+# clears it within 10 minutes so the next ssr-rules invocation regenerates fresh.
+*/10 * * * * root [ -f /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft ] && ! grep -q ss_spec_wan_fw_tcp /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft && rm -f /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft && logger -t ssrplus-watchdog "wiped corrupt persistence file"
