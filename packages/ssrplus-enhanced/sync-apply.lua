@@ -171,6 +171,30 @@ local function extract_public_ipv4(text)
 end
 
 local function get_direct_public_ip()
+	-- Read the WAN's actual PPPoE-assigned IPv4 directly from ifstatus first.
+	-- This is the ground truth — never affected by which exit the proxy is on,
+	-- never affected by GeoDNS, never round-trips an HTTP probe through the
+	-- proxy by mistake. The previous "curl an external IP echo service"
+	-- approach was a known footgun: myip.ipip.net / ddns.oray.com / ip.3322.net
+	-- all resolve to servers that aren't in the chnroute set on this router,
+	-- so when the proxy exit was overseas, every probe came back with the
+	-- proxy exit IP instead of the WAN IP, making the status page useless.
+	for _, iface in ipairs({ "wan", "wwan" }) do
+		local raw = exec("ifstatus " .. iface .. " 2>/dev/null")
+		if raw ~= "" then
+			local ok, parsed = pcall(jsonc.parse, raw)
+			if ok and type(parsed) == "table" and type(parsed["ipv4-address"]) == "table" then
+				for _, entry in ipairs(parsed["ipv4-address"]) do
+					if type(entry) == "table" and entry.address and not entry.address:match("^127%.") then
+						return entry.address
+					end
+				end
+			end
+		end
+	end
+	-- Fallback: external probe. Kept for cases where ifstatus is unavailable
+	-- (non-OpenWrt environments) but with the understanding that this path
+	-- can return the proxy exit IP when the user is on an overseas node.
 	local endpoints = {
 		"https://myip.ipip.net",
 		"https://ddns.oray.com/checkip",

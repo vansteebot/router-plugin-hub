@@ -406,6 +406,23 @@ local function extract_public_ipv4(text)
 end
 
 local function get_direct_public_ip()
+	-- Read PPPoE-assigned IPv4 directly from ifstatus first; this is the
+	-- ground truth and never gets confused by external IP-echo services
+	-- whose own IPs happen to fall outside the chnroute set (which made
+	-- the old curl-based probes return the proxy exit IP on overseas nodes).
+	for _, iface in ipairs({ "wan", "wwan" }) do
+		local raw = run_command("ifstatus " .. iface)
+		if raw ~= "" then
+			local ok, parsed = pcall(luci.jsonc.parse, raw)
+			if ok and type(parsed) == "table" and type(parsed["ipv4-address"]) == "table" then
+				for _, entry in ipairs(parsed["ipv4-address"]) do
+					if type(entry) == "table" and entry.address and not entry.address:match("^127%.") then
+						return entry.address
+					end
+				end
+			end
+		end
+	end
 	local endpoints = {
 		"https://myip.ipip.net",
 		"https://ddns.oray.com/checkip",
