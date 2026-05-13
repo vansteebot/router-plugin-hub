@@ -35,6 +35,7 @@ $files = @(
     @{ Source = 'import-ss-txt.sh';         Target = '/usr/share/shadowsocksr/import-ss-txt.sh';                   Mode = '0755' }
     @{ Source = 'windows-clash-recover.ps1';Target = '/usr/share/shadowsocksr/windows-clash-recover.ps1';          Mode = '0644' }
     @{ Source = 'gfw2ipset.remote.sh';      Target = '/usr/share/shadowsocksr/gfw2ipset.sh';                       Mode = '0755' }
+    @{ Source = 'dns-flush.sh';             Target = '/usr/share/shadowsocksr/dns-flush.sh';                       Mode = '0755' }
     @{ Source = 'shadowsocksr.init.remote.sh';Target = '/etc/init.d/shadowsocksr';                                 Mode = '0755' }
     @{ Source = 'ssr-switch.remote.sh';     Target = '/usr/bin/ssr-switch';                                        Mode = '0755' }
     @{ Source = 'ssr-rules.remote.sh';      Target = '/usr/bin/ssr-rules';                                         Mode = '0755' }
@@ -152,6 +153,12 @@ $installLines.Add('/etc/init.d/odhcpd restart >/dev/null 2>&1 || true')
 $installLines.Add('/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true')
 $installLines.Add('# Reload cron so /etc/cron.d/ssrplus-persistence-check is picked up')
 $installLines.Add('/etc/init.d/cron reload >/dev/null 2>&1 || /etc/init.d/cron restart >/dev/null 2>&1 || true')
+$installLines.Add('# Append common GeoDNS-aware Chinese domains to white.list if missing.')
+$installLines.Add('if [ -f /etc/ssrplus/white.list ]; then')
+$installLines.Add('  for d in taobao.com tbcache.com tmall.com alibaba.com alicdn.com aliyun.com alipay.com 1688.com mmstat.com aliexpress.com xiaohongshu.com xhscdn.com douyin.com bytedance.com bilibili.com bilivideo.com; do')
+$installLines.Add('    grep -qFx "$d" /etc/ssrplus/white.list || echo "$d" >> /etc/ssrplus/white.list')
+$installLines.Add('  done')
+$installLines.Add('fi')
 $installLines.Add('# One-shot: wipe corrupt persistence file right now if present')
 $installLines.Add('if [ -f /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft ] && ! grep -q ss_spec_wan_fw_tcp /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft; then')
 $installLines.Add('  rm -f /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft')

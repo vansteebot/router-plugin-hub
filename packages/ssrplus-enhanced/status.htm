@@ -2,6 +2,7 @@
 	var ssrStatusUrl = '<%=url([[admin]], [[services]], [[shadowsocksr]], [[status_info]])%>';
 	var ssrRebuildUrl = '<%=url([[admin]], [[services]], [[shadowsocksr]], [[flush]])%>';
 	var ssrHardRebuildUrl = '<%=url([[admin]], [[services]], [[shadowsocksr]], [[flush_hard]])%>';
+	var ssrFlushDnsUrl = '<%=url([[admin]], [[services]], [[shadowsocksr]], [[flush_dns]])%>';
 	var ssrToggleIpv6Url = '<%=url([[admin]], [[services]], [[shadowsocksr]], [[toggle_ipv6]])%>';
 	var ssrNoticePendingKey = 'ssrplus_notice_pending';
 	var ssrNoticeSeenKey = 'ssrplus_notice_seen';
@@ -415,6 +416,10 @@
 		return ssrPostAction(ssrHardRebuildUrl, {}, button, '正在彻底清理...');
 	}
 
+	function ssrFlushDns(button) {
+		return ssrPostAction(ssrFlushDnsUrl, {}, button, '正在清理 DNS 缓存并生效...');
+	}
+
 	function ssrSetIpv6Mode(button, mode) {
 		var labels = {
 			off: '正在关闭 IPv6...',
@@ -611,6 +616,7 @@
 
 	<div class="ssrplus-toolbar">
 		<input type="button" class="cbi-button cbi-button-reload" value="重新生效网络" onclick="return ssrRebuild(this)" />
+		<input type="button" class="cbi-button cbi-button-action" value="清理 DNS 缓存并生效" onclick="return ssrFlushDns(this)" title="切换境外节点后，国内站点（百度/淘宝等）会被解析到境外 CDN 并被缓存。点此清掉 chinadns-ng + dnsmasq 缓存并重新生效。" />
 		<input type="button" class="cbi-button cbi-button-negative" value="彻底清理并重启" onclick="return ssrHardRebuild(this)" />
 		<div class="ssrplus-toolbar-group">
 			<span class="ssrplus-toolbar-caption">IPv6 策略</span>
@@ -638,6 +644,6 @@
 	</div>
 
 	<p class="ssrplus-tip">
-		说明：如果当前链路异常，优先使用“重新生效网络”；如果怀疑有残留进程或状态冲突，再使用“彻底清理并重启”。开启 IPv6 目前只控制系统 IPv6 状态，仍会保持 AAAA 过滤以避免直连泄露。
+		说明：如果当前链路异常，优先使用”重新生效网络”；切换境外节点后国内网站打开慢/错位（百度/淘宝/QQ 等被解析到境外 CDN），使用”清理 DNS 缓存并生效”；如果怀疑有残留进程或状态冲突，再使用”彻底清理并重启”。开启 IPv6 目前只控制系统 IPv6 状态，仍会保持 AAAA 过滤以避免直连泄露。
 	</p>
 </div>

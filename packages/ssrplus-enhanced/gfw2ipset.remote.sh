@@ -98,15 +98,29 @@ ensure_dnsmasq_dir
 drop_listed_domains "$TMP_DNSMASQ_PATH/gfw_list.conf"
 drop_listed_domains "$TMP_DNSMASQ_PATH/gfw_base.conf"
 
+# Compute the DNS server that whitelist domains (Chinese sites) should query.
+# Why this matters: GeoDNS-aware Chinese services (baidu.com, qq.com, taobao.com)
+# return different IPs depending on the resolver's source IP. If whitelist queries
+# go through chinadns-ng (whose trusted upstream is foreign over TCP), the
+# authoritative server sees a non-CN source and hands back an overseas CDN IP.
+# chinadns-ng then caches that wrong IP for up to cache-stale (1 day) — so every
+# device on the LAN gets routed to a slow overseas CDN even when you're back on a
+# domestic exit. Routing whitelist queries straight to AliDNS (or whatever the
+# user configured as chinadns_forward) ensures the authoritative server always
+# sees a CN source IP and returns the proper domestic CDN.
+whitelist_dns_server=$(uci_get_by_type global chinadns_forward '223.5.5.5:53')
+whitelist_dns_server="${whitelist_dns_server%%:*}"
+[ -z "$whitelist_dns_server" ] && whitelist_dns_server="223.5.5.5"
+
 # 此处直接使用 cat 因为有 sed '/#/d' 删除了 数据
 if [ "$nft_support" = "1" ]; then
 	ensure_dnsmasq_dir
 	cat /etc/ssrplus/black.list | sed '/^$/d' | sed '/#/d' | sed "/.*/s/.*/server=\/&\/127.0.0.1#$dns_port\nnftset=\/&\/4#inet#ss_spec#blacklist/" >$TMP_DNSMASQ_PATH/blacklist_forward.conf
-	cat /etc/ssrplus/white.list | sed '/^$/d' | sed '/#/d' | sed "/.*/s/.*/server=\/&\/127.0.0.1\nnftset=\/&\/4#inet#ss_spec#whitelist/" >$TMP_DNSMASQ_PATH/whitelist_forward.conf
+	cat /etc/ssrplus/white.list | sed '/^$/d' | sed '/#/d' | sed "/.*/s/.*/server=\/&\/$whitelist_dns_server\nnftset=\/&\/4#inet#ss_spec#whitelist/" >$TMP_DNSMASQ_PATH/whitelist_forward.conf
 else
 	ensure_dnsmasq_dir
 	cat /etc/ssrplus/black.list | sed '/^$/d' | sed '/#/d' | sed "/.*/s/.*/server=\/&\/127.0.0.1#$dns_port\nipset=\/&\/blacklist/" >$TMP_DNSMASQ_PATH/blacklist_forward.conf
-	cat /etc/ssrplus/white.list | sed '/^$/d' | sed '/#/d' | sed "/.*/s/.*/server=\/&\/127.0.0.1\nipset=\/&\/whitelist/" >$TMP_DNSMASQ_PATH/whitelist_forward.conf
+	cat /etc/ssrplus/white.list | sed '/^$/d' | sed '/#/d' | sed "/.*/s/.*/server=\/&\/$whitelist_dns_server\nipset=\/&\/whitelist/" >$TMP_DNSMASQ_PATH/whitelist_forward.conf
 fi
 ensure_dnsmasq_dir
 cat /etc/ssrplus/deny.list | sed '/^$/d' | sed '/#/d' | sed "/.*/s/.*/address=\/&\//" >$TMP_DNSMASQ_PATH/denylist.conf

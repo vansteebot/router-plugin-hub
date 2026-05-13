@@ -33,6 +33,7 @@ function index()
 	entry({"admin", "services", "shadowsocksr", "flush_fast"}, call("act_quick_flush")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "flush"}, call("act_flush")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "flush_hard"}, call("act_flush_hard")).leaf = true
+	entry({"admin", "services", "shadowsocksr", "flush_dns"}, call("act_flush_dns")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "toggle_ipv6"}, call("act_toggle_ipv6")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "import_ss"}, call("act_import_ss")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "export_full"}, call("export_full_backup")).leaf = true
@@ -998,6 +999,15 @@ end
 
 function act_flush_hard()
 	write_json(queue_sync_apply("hard_rebuild", "已提交后台任务，正在彻底清理残留进程并重启代理"))
+end
+
+-- Wipe router-side DNS caches (chinadns-ng in-memory + persistent files +
+-- dnsmasq LRU) and then queue a rebuild so DNS components come back fresh.
+-- Cures stuck overseas-CDN IPs for GeoDNS-aware Chinese sites after switching
+-- proxy exits — see dns-flush.sh comment for the full mechanism.
+function act_flush_dns()
+	luci.sys.call("/usr/share/shadowsocksr/dns-flush.sh >/tmp/ssrplus-dns-flush.log 2>&1")
+	write_json(queue_sync_apply("dns_flush", "DNS 缓存已清理，正在重新生效网络"))
 end
 
 function act_toggle_ipv6()
