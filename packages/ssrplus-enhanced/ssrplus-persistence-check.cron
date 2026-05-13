@@ -1,6 +1,21 @@
-# SSR Plus+ Enhanced — persistence watchdog
-# Wipes a corrupt nftables persistence file (one missing the TCP forward chain).
-# Defensive companion to the AUTO-PATCH-TCP-VALIDATE check in /usr/bin/ssr-rules:
-# if anything ever writes a half-broken persistence file again, this cron entry
-# clears it within 10 minutes so the next ssr-rules invocation regenerates fresh.
-*/10 * * * * root [ -f /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft ] && ! grep -q ss_spec_wan_fw_tcp /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft && rm -f /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft && logger -t ssrplus-watchdog "wiped corrupt persistence file"
+# SSR Plus+ Enhanced — watchdog cron
+#
+# Defends two invariants that have historically broken in the wild:
+#
+#   (1) /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft must contain
+#       the TCP forward chain. Half-written files (UDP-only) cause all LAN
+#       TCP to leak direct out the WAN. Wipe corrupt files so the next
+#       ssr-rules run regenerates from scratch.
+#
+#   (2) nft table inet ss_spec must contain the `domestic_dns_servers` set,
+#       which is what makes precision split-DNS work (queries to AliDNS /
+#       DNSPod / etc. bypass the proxy so GeoDNS returns the right CN CDN).
+#       If the set goes missing — e.g. an opkg update overwrote /usr/bin/
+#       ssr-rules with an upstream version that doesn't know about it —
+#       rerun ssr-rules to re-establish it.
+#
+# Both checks run every 10 minutes. Each is independent: invariant (2)
+# failing doesn't disturb (1)'s remediation and vice versa.
+
+*/10 * * * * root [ -f /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft ] && ! grep -q ss_spec_wan_fw_tcp /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft && rm -f /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft && logger -t ssrplus-watchdog "wiped corrupt persistence file (missing TCP chain)"
+*/10 * * * * root nft list table inet ss_spec >/dev/null 2>&1 && ! nft list set inet ss_spec domestic_dns_servers >/dev/null 2>&1 && /etc/init.d/shadowsocksr restart >/dev/null 2>&1 && logger -t ssrplus-watchdog "restarted SSR — domestic_dns_servers set was missing (ssr-rules likely overwritten by opkg)"

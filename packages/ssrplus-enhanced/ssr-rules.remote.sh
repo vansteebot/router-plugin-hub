@@ -320,7 +320,7 @@ ipset_nft() {
 	fi
 
 	# Create necessary collections
-	for setname in china gmlan fplan bplan whitelist blacklist netflix music; do
+	for setname in china gmlan fplan bplan whitelist blacklist netflix music domestic_dns_servers; do
 		if ! $NFT list set inet ss_spec $setname >/dev/null 2>&1; then
 			$NFT add set inet ss_spec $setname '{ type ipv4_addr; flags interval; auto-merge; }' 2>/dev/null
 		else
@@ -332,6 +332,38 @@ ipset_nft() {
 	if [ -f "${china_ip:=/etc/ssrplus/china_ssr.txt}" ]; then
 		$NFT add element inet ss_spec china "{ $(tr '\n' ',' < "${china_ip}" | sed 's/,$//') }" 2>/dev/null
 	fi
+
+	# Populate domestic_dns_servers with the IPs chinadns-ng and dnsmasq query
+	# for "is this domain Chinese?" resolution. These queries MUST go out via WAN
+	# (not the proxy), so the authoritative servers see a CN source IP and their
+	# GeoDNS returns the correct domestic CDN. Without this, switching to an
+	# overseas exit makes baidu/qq/taobao/sina resolve to overseas CDN IPs and
+	# chinadns-ng caches the wrong answers for cache-stale (default 1 day).
+	#
+	# Defaults cover AliDNS, Tencent DNSPod, Baidu, 114DNS, DNSPod, CNNIC, OneDNS.
+	# Plus we extract whatever the user has configured as chinadns_forward and
+	# chinadns_ng_shunt_dnsserver so any custom domestic DNS also bypasses.
+	for ddns_ip in 223.5.5.5 223.6.6.6 \
+	               119.29.29.29 119.28.28.28 \
+	               180.76.76.76 \
+	               114.114.114.114 114.114.115.115 \
+	               1.2.4.8 210.2.4.8 \
+	               117.50.10.10 117.50.11.11 \
+	               112.124.47.27 114.215.126.16; do
+		$NFT add element inet ss_spec domestic_dns_servers "{ $ddns_ip }" 2>/dev/null
+	done
+	for uci_dns in "$(uci -q get shadowsocksr.@global[0].chinadns_forward)" \
+	              "$(uci -q get shadowsocksr.@global[0].chinadns_ng_shunt_dnsserver)"; do
+		# Strip ":port" suffixes and any leading proto:// — keep just IPv4
+		for tok in $(echo "$uci_dns" | tr ',' ' '); do
+			ip4=$(echo "$tok" | sed 's|.*://||' | cut -d: -f1 | cut -d'#' -f1)
+			case "$ip4" in
+				[0-9]*.[0-9]*.[0-9]*.[0-9]*)
+					$NFT add element inet ss_spec domestic_dns_servers "{ $ip4 }" 2>/dev/null
+					;;
+			esac
+		done
+	done
 
 	# Bulk import xhttp ip list into nft whitelist (server + shunt)
 	if [ -f "${xhttp_ip:=/etc/ssrplus/xhttp_address.txt}" ]; then
@@ -366,6 +398,12 @@ ipset_nft() {
 	# Add basic rules
 	# BASIC RULES (exceptions first) — TCP
 	$NFT add rule inet ss_spec ss_spec_wan_ac_tcp meta l4proto tcp tcp dport 53 ip daddr 127.0.0.0/8 return
+	# PRECISION SPLIT-DNS BYPASS: any port-53 traffic destined for a known
+	# domestic DNS server bypasses the proxy unconditionally. This is what
+	# guarantees chinadns-ng's domestic-upstream query reaches AliDNS/DNSPod
+	# from the router's CN WAN IP — so their GeoDNS hands back the proper
+	# domestic CDN, no domain whitelist needed.
+	$NFT add rule inet ss_spec ss_spec_wan_ac_tcp meta l4proto tcp tcp dport 53 ip daddr @domestic_dns_servers return
 	[ -n "$server" ] && $NFT add rule inet ss_spec ss_spec_wan_ac_tcp meta l4proto tcp tcp dport != 53 ip daddr "$server" return
 
 	# Access control: blacklist -> whitelist -> fplan/bplan — TCP
@@ -376,6 +414,8 @@ ipset_nft() {
 
 	# BASIC RULES (exceptions first) — UDP
 	$NFT add rule inet ss_spec ss_spec_wan_ac_udp meta l4proto udp udp dport 53 ip daddr 127.0.0.0/8 return
+	# Mirror of the precision split-DNS bypass for UDP queries (the common case).
+	$NFT add rule inet ss_spec ss_spec_wan_ac_udp meta l4proto udp udp dport 53 ip daddr @domestic_dns_servers return
 	[ -n "$server" ] && $NFT add rule inet ss_spec ss_spec_wan_ac_udp meta l4proto udp udp dport != 53 ip daddr "$server" return
 
 	# Access control: blacklist -> whitelist -> fplan/bplan — UDP
@@ -800,7 +840,13 @@ ac_rule_nft() {
 		#		$NFT add rule inet ss_spec ss_spec_output_udp ip6 daddr $net return 2>/dev/null
 		#	done
 		#fi
-		
+
+		# PRECISION SPLIT-DNS BYPASS (UDP output): same intent as the wan_ac chain
+		# but for the router's own outbound UDP. chinadns-ng on the router queries
+		# 223.5.5.5 via UDP — that packet must NOT get tproxy-marked, otherwise
+		# AliDNS sees a non-CN source IP and returns overseas CDN.
+		$NFT add rule inet ss_spec ss_spec_output_udp udp dport 53 ip daddr @domestic_dns_servers return 2>/dev/null
+
 		# create output hook chain & route output traffic into router chain
 		$NFT add rule inet ss_spec ss_spec_output_udp $UDP_EXT_ARGS meta mark set 0x01 comment "\"$TAG\"" 2>/dev/null
 		;;
