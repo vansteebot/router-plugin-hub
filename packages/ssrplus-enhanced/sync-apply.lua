@@ -611,8 +611,9 @@ local function wait_for_processes(active)
 	end
 	local helper = dns_helper_name(uci:get_first("shadowsocksr", "global", "pdnsd_enable", "0"))
 	local need_obfs = requires_obfs(active.section)
-	-- 路由器切换链路时会重启 dns2tcp/chinadns-ng；低端设备上偶发 >25s 仍属正常，避免误判进入重试风暴
-	local deadline = os.time() + 45
+	-- 路由器切换链路时会重启 dns2tcp/chinadns-ng；低端设备上偶发 >25s 仍属正常，避免误判进入重试风暴。
+	-- dns_flush 之后 chinadns-ng 需要被监督进程完全拉起，留出更长缓冲。
+	local deadline = os.time() + 75
 	while os.time() <= deadline do
 		local has_proxy = main_proxy_ready(active.section)
 		local has_dns = dns_chain_ready(helper)
@@ -865,7 +866,7 @@ local function run_main()
 	data.probe_target = probe.target
 
 	local should_retry = (not hard_rebuild)
-		and (reason == "apply" or reason == "rebuild" or reason == "restart")
+		and (reason == "apply" or reason == "rebuild" or reason == "restart" or reason == "dns_flush")
 		and ((ret ~= 0 and not ok) or not ok)
 	if should_retry then
 		write_status({

@@ -15,13 +15,13 @@ Router Plugin Hub 是面向路由器插件增强开发的总仓库，统一管�
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | **20260515** |
+| 版本 | **20260516** |
 | 平台 | GL-BE3600 / aarch64_cortex-a53 / OpenWrt r126 |
 | 完整包体积 | 约 **52 MB**（`build-full-package-from-upstream.ps1`；含 ipk/depends + 增强层 + ChinaDNS TCP 默认 + TCP 持久化校验 + cron 守护） |
-| 安装包文件名 | `ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515.run` |
-| 本仓库构建路径 | `packages/ssrplus-enhanced/release/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515.run` |
+| 安装包文件名 | `ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260516.run` |
+| 本仓库构建路径 | `packages/ssrplus-enhanced/release/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260516/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260516.run` |
 | 校验 | 同目录 `SHA256SUMS.txt`（与发布说明一致） |
-| 下载 | [Release 页面](https://github.com/vansteebot/router-plugin-hub/releases/tag/ssrplus-enhanced-20260515) · [直链 `.run`](https://github.com/vansteebot/router-plugin-hub/releases/download/ssrplus-enhanced-20260515/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515.run) · [全部 Releases](https://github.com/vansteebot/router-plugin-hub/releases) |
+| 下载 | [Release 页面](https://github.com/vansteebot/router-plugin-hub/releases/tag/ssrplus-enhanced-20260516) · [直链 `.run`](https://github.com/vansteebot/router-plugin-hub/releases/download/ssrplus-enhanced-20260516/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260516.run) · [全部 Releases](https://github.com/vansteebot/router-plugin-hub/releases) |
 
 ### 安装方式
 
@@ -63,13 +63,13 @@ chmod +x /tmp/ssrp_*.run && /tmp/ssrp_*.run
 
 ---
 
-## 📋 更新日志 (20260515)
+## 📋 更新日志 (20260516)
 
 | 说明 |
 |------|
 | **关键修复**：切境外节点后国内网站(百度/淘宝/QQ/支付宝/B站)被解析到境外 CDN 并被 chinadns-ng 缓存 1 天。根因:`whitelist_forward.conf` 用 `127.0.0.1` 写死循环没起作用,叠加 chinadns-ng 缓存。修复:白名单 DNS 直接走阿里 DNS 不经过 chinadns,补齐缺失的常见国内域名,**新增「清理 DNS 缓存并生效」按钮**(状态页工具栏)。 |
 
-完整更新说明：[docs/releases/ssrplus-enhanced-20260515.md](docs/releases/ssrplus-enhanced-20260515.md)
+完整更新说明：[docs/releases/ssrplus-enhanced-20260516.md](docs/releases/ssrplus-enhanced-20260516.md)
 
 历史版本：
 - [20260513](docs/releases/ssrplus-enhanced-20260513.md) — chinadns-ng trusted upstream 默认改 TCP 防 GFW UDP 投毒

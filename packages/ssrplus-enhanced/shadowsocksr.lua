@@ -562,6 +562,26 @@ build_status_info = function()
 	elseif not info.message or info.message == "" then
 		info.message = info.running and "代理运行中" or "代理未运行"
 	end
+
+	-- Self-heal stale "dns" / "process" errors: the original sync-apply may
+	-- have written an error status when wait_for_processes timed out (chinadns
+	-- often needs more than 45 s on a slow boot, or dns-flush kills it and
+	-- the supervisor takes a few extra seconds to respawn). If everything is
+	-- actually fine now — proxy running AND chinadns-ng (or any DNS helper)
+	-- present — clear the stale error so the UI stops scaring the user.
+	if info.running and not info.ok and (info.phase == "dns" or info.phase == "process") then
+		local dns_alive = (tonumber(run_command("pgrep -c chinadns-ng")) or 0) > 0
+			or (tonumber(run_command("pgrep -c dns2socks")) or 0) > 0
+			or (tonumber(run_command("pgrep -c dns2tcp")) or 0) > 0
+			or (tonumber(run_command("pgrep -c mosdns")) or 0) > 0
+			or (tonumber(run_command("pgrep -c dnsproxy")) or 0) > 0
+		if dns_alive then
+			info.ok = true
+			info.phase = "done"
+			info.ip = ""  -- force re-detection below
+			info.message = "代理链路就绪，正在刷新出口 IP"
+		end
+	end
 	if info.direct_ip == "" then
 		info.direct_ip = get_direct_public_ip()
 	end
