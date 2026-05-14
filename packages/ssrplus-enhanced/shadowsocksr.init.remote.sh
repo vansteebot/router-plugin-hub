@@ -209,20 +209,6 @@ add_dns_into_ipset() {
 
 start_dns() {
 	local ssrplus_dns="$(uci_get_by_type global pdnsd_enable 0)"
-	local run_mode="$(uci_get_by_type global run_mode)"
-	# Direct mode (pdnsd_enable=0) starts no foreign DNS, so the dnsmasq
-	# gfw_list rules — `server=/.../127.0.0.1#5335` — fall through to the
-	# ISP's resolver, which gets GFW-poisoned for anything sensitive. Result:
-	# everything (including domestic) starts feeling broken because the
-	# polluted IPs leak through. Auto-upgrade to ChinaDNS-NG mode whenever
-	# the user is actually running split-routing (router/gfw modes), so the
-	# user never ends up in the "I picked direct and now nothing works" trap.
-	if [ "$ssrplus_dns" = "0" ] && { [ "$run_mode" = "router" ] || [ "$run_mode" = "gfw" ]; }; then
-		echolog "[autofix] pdnsd_enable=0 under run_mode=$run_mode breaks foreign-DNS path; auto-upgrading to ChinaDNS-NG (mode 6)"
-		ssrplus_dns="6"
-		uci_set_by_type global pdnsd_enable "6"
-		uci commit shadowsocksr 2>/dev/null
-	fi
 	local dnsproxy_dnsserver="$(uci_get_by_type global parse_method)"
 	if [ -n "$dnsproxy_dnsserver" ] && [ "$dnsproxy_dnsserver" != "parse_file" ]; then
 		dnsserver="$(uci_get_by_type global dnsproxy_tunnel_forward 8.8.4.4:53)"
@@ -231,6 +217,7 @@ start_dns() {
 	else
 		dnsserver="$(uci_get_by_type global tunnel_forward 8.8.4.4:53)"
 	fi
+	local run_mode="$(uci_get_by_type global run_mode)"
 
 	if [ "$ssrplus_dns" != "0" ]; then
 		if command -v iptables-legacy >/dev/null 2>&1; then
@@ -378,26 +365,16 @@ start_dns() {
 
 		if [ "$run_mode" = "router" ]; then
 			local chinadns="$(uci_get_by_type global chinadns_forward)"
-			# Auto-enable ChinaDNS when in router (bypass China) mode.
-			# Default upstream is AliDNS (223.5.5.5), not "wan_114" — the
-			# WAN-supplied DNS comes from the ISP (often hijacked/sticky-
-			# answer-prone) and 114.114.114.114 is widely intercepted and
-			# returns wrong CDN answers for GeoDNS-aware Chinese sites.
-			# Hard-bake AliDNS for reliability; user can still override.
+			# Auto-enable ChinaDNS when in router (bypass China) mode
 			if [ -z "$chinadns" ]; then
-				chinadns="223.5.5.5:53"
+				chinadns="wan_114"
 				uci_set_by_type global chinadns_forward "$chinadns"
 				uci commit shadowsocksr 2>/dev/null
 			fi
-			local wandns="$(ifstatus wan | jsonfilter -e '@["dns-server"][0]' || echo "223.5.5.5")"
+			local wandns="$(ifstatus wan | jsonfilter -e '@["dns-server"][0]' || echo "119.29.29.29")"
 			case "$chinadns" in
 			"wan") chinadns="$wandns" ;;
-			"wan_114")
-				# Mixed ISP+114DNS — 114 is unreliable. Override to AliDNS+wan
-				# (WAN DNS still useful for LAN-side .local resolution; AliDNS
-				# handles the GeoDNS-aware queries that 114 would mess up).
-				chinadns="223.5.5.5,$wandns"
-				;;
+			"wan_114") chinadns="$wandns,114.114.114.114" ;;
 			esac
 
 			ln_start_bin $(first_type chinadns-ng) chinadns-ng -l $china_dns_port -4 china -p 3 -c ${chinadns/:/#} -t 127.0.0.1#$dns_port -N -f -r
