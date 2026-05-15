@@ -1,0 +1,46 @@
+# Anything deployed to the OpenWrt router MUST be LF.
+# Git on Windows with default core.autocrlf=true silently converts LF→CRLF
+# on checkout; payloads built from those files then ship CRLF into a Linux
+# shell, which turns shebangs into `#!/bin/sh\r` (-> "not found") and
+# triggers Lua "unfinished string near" errors in LuCI templates.
+
+# Shell scripts and OpenWrt init.d files
+*.sh        text eol=lf
+*.init      text eol=lf
+
+# Lua (LuCI controllers/models/views)
+*.lua       text eol=lf
+*.htm       text eol=lf
+*.html      text eol=lf
+
+# OpenWrt UCI / dnsmasq / cron drop-ins
+*.conf      text eol=lf
+*.cron      text eol=lf
+*.list      text eol=lf
+*.txt       text eol=lf
+
+# Structured config used cross-platform — keep LF for git diff sanity
+*.json      text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.md        text eol=lf
+
+# PowerShell build scripts run on Windows — keep native CRLF
+*.ps1       text eol=crlf
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+
+# Compiled / packaged binaries — never normalize
+*.run       binary
+*.tar       binary
+*.tar.gz    binary
+*.tgz       binary
+*.gz        binary
+*.zip       binary
+*.7z        binary
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.pdf       binary

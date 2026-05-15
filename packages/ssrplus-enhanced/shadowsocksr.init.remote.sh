@@ -106,7 +106,11 @@ get_host_ip() {
 	[ -z "$ip" ] || uci_set_by_name $1 ip $ip
 	[ -n "$ip" ] || ip="$(uci_get_by_name $1 ip "ERROR")"
 
-	local chinadns="$(uci_get_by_type global chinadns_forward)"
+	# Fallback to AliDNS so this helper still injects the address= entry even
+	# when UCI's chinadns_forward got transiently wiped by LuCI sync-apply or
+	# dns-flush. Without it, SS server hostnames lose their pinned IP and may
+	# resolve to a poisoned address after a cache flush.
+	local chinadns="$(uci_get_by_type global chinadns_forward 223.5.5.5:53)"
 	if [ -n "$chinadns" ] && [ "$ip" != "$host" ]; then
 		mkdir -p "$TMP_DNSMASQ_PATH"
 		grep -q "$host" "$TMP_DNSMASQ_PATH/chinadns_fixed_server.conf" 2>"/dev/null" || \
@@ -357,18 +361,28 @@ start_dns() {
 		esac
 
 		if [ "$run_mode" = "router" ]; then
-			local chinadns="$(uci_get_by_type global chinadns_forward)"
+			# Default to AliDNS when UCI is empty. Observed in production: LuCI
+			# sync-apply or dns-flush can transiently wipe chinadns_forward even
+			# when the user picked "use ChinaDNS-NG" in the UI; without a default
+			# we silently fall into the WAN-direct branch, dnsmasq starts using
+			# 112.x ISP DNS for everything, and the LAN sees poisoned answers for
+			# Google/YouTube and overseas-CDN answers for baidu/qq/bilibili.
+			local chinadns="$(uci_get_by_type global chinadns_forward 223.5.5.5:53)"
 			local wandns="$(ifstatus wan | jsonfilter -e '@["dns-server"][0]' || echo "119.29.29.29")"
-			# 国内 DNS「直通模式」(chinadns_forward 为空)：dnsmasq 直连 WAN DNS，不走 5333 的 chinadns-ng。
-			# 禁止在此处把空值改回 wan_114，否则用户在 LuCI 选的「禁用 ChinaDNS-NG」会被覆盖，
-			# 国内域名仍经代理侧 DNS 解析，得到海外 CDN IP，再因不在 china 路由表内而全部走代理。
+			# To truly opt out of ChinaDNS-NG (use only WAN DNS), set
+			# chinadns_forward to the literal string "wan" or "wan_114" — those
+			# get rewritten below — or comment out this branch entirely. An
+			# empty/unset value is treated as "user did not configure", not as
+			# "explicit disable".
 			if [ -n "$chinadns" ]; then
 				case "$chinadns" in
 				"wan") chinadns="$wandns" ;;
 				"wan_114") chinadns="$wandns,114.114.114.114" ;;
 				esac
 
-				ln_start_bin $(first_type chinadns-ng) chinadns-ng -l $china_dns_port -4 china -p 3 -c ${chinadns/:/#} -t 127.0.0.1#$dns_port -N -f -r
+				# -f / --fair-mode is a nop in chinadns-ng 2024+; the binary
+				# only has fair mode now. Dropping it keeps the args truthful.
+				ln_start_bin $(first_type chinadns-ng) chinadns-ng -l $china_dns_port -4 china -p 3 -c ${chinadns/:/#} -t 127.0.0.1#$dns_port -N -r
 
 				cat <<-EOF >> "$TMP_DNSMASQ_PATH/chinadns_fixed_server.conf"
 					no-poll
