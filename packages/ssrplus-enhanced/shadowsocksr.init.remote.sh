@@ -380,9 +380,19 @@ start_dns() {
 				"wan_114") chinadns="$wandns,114.114.114.114" ;;
 				esac
 
+				# chnroute check uses nftables on this router (no ipset),
+				# so the -4/-6 names must be `family@table@set` paths.
+				# `-4 china` (bare name) makes chinadns-ng look for an ipset
+				# named "china" → not found → chnroute check fails silently →
+				# every reply gets treated as "non-CN" and the trusted upstream
+				# wins. Result: baidu/qq/bilibili resolve to overseas CDN IPs
+				# returned by 1.1.1.1's GeoDNS (it sees us via the proxy exit).
+				# The matching IPv6 set `china6` is created empty by
+				# ssr-rules' ipset_nft() to satisfy chinadns-ng's argument
+				# parser; without it chinadns-ng refuses to start.
 				# -f / --fair-mode is a nop in chinadns-ng 2024+; the binary
 				# only has fair mode now. Dropping it keeps the args truthful.
-				ln_start_bin $(first_type chinadns-ng) chinadns-ng -l $china_dns_port -4 china -p 3 -c ${chinadns/:/#} -t 127.0.0.1#$dns_port -N -r
+				ln_start_bin $(first_type chinadns-ng) chinadns-ng -l $china_dns_port -4 inet@ss_spec@china -6 inet@ss_spec@china6 -p 3 -c ${chinadns/:/#} -t 127.0.0.1#$dns_port -N -r
 
 				cat <<-EOF >> "$TMP_DNSMASQ_PATH/chinadns_fixed_server.conf"
 					no-poll

@@ -384,6 +384,18 @@ ipset_nft() {
 		fi
 	done
 
+	# IPv6 chnroute set: kept empty on purpose (IPv6 is disabled at the proxy
+	# layer here) but MUST exist so chinadns-ng can be launched with
+	# `-6 inet@ss_spec@china6`. chinadns-ng 2024+ refuses to start when -4 is
+	# given as a nftset path but -6 defaults to the legacy ipset "chnroute6";
+	# providing this empty IPv6 set keeps the IPv4 chnroute check working
+	# (-4 inet@ss_spec@china) without needing any IPv6 data. The daemon's
+	# persistence exporter walks the entire `inet ss_spec` table, so an empty
+	# china6 set also survives across `ssr-rules restore`.
+	if ! $NFT list set inet ss_spec china6 >/dev/null 2>&1; then
+		$NFT add set inet ss_spec china6 '{ type ipv6_addr; flags interval; auto-merge; }' 2>/dev/null
+	fi
+
 	nft_load_china_set inet ss_spec china "${china_ip:=/etc/ssrplus/china_ssr.txt}"
 
 	# Populate domestic_dns_servers with the IPs chinadns-ng and dnsmasq query
