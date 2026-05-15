@@ -15,13 +15,13 @@ Router Plugin Hub 是面向路由器插件增强开发的总仓库，统一管�
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | **v20260515c** |
+| 版本 | **v20260515e** |
 | 平台 | GL-BE3600 / aarch64_cortex-a53 / OpenWrt r126 |
 | 完整包体积 | 约 **54.4 MB**（`build-full-package-from-upstream.ps1`；含 ipk/depends） |
-| 安装包文件名 | `ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515c.run` |
-| 本仓库构建路径 | `packages/ssrplus-enhanced/release/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515c/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515c.run` |
-| 校验 | SHA256 `072d4f9f150c5c1e9401717a1937ce57d090d9f5c5a944281d744a91a67edfd6` |
-| 下载 | [Release 页面](https://github.com/vansteebot/router-plugin-hub/releases/tag/v20260515c) · [直链 `.run`](https://github.com/vansteebot/router-plugin-hub/releases/download/v20260515c/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515c.run) · [全部 Releases](https://github.com/vansteebot/router-plugin-hub/releases) |
+| 安装包文件名 | `ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515e.run` |
+| 本仓库构建路径 | `packages/ssrplus-enhanced/release/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515e/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515e.run` |
+| 校验 | SHA256 `fc8b6abedba0c13984c428501aaee5e830bbdc895c795699916dd9fa751462d1` |
+| 下载 | [Release 页面](https://github.com/vansteebot/router-plugin-hub/releases/tag/v20260515e) · [直链 `.run`](https://github.com/vansteebot/router-plugin-hub/releases/download/v20260515e/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515e.run) · [全部 Releases](https://github.com/vansteebot/router-plugin-hub/releases) |
 
 ### 安装方式
 
@@ -63,18 +63,22 @@ chmod +x /tmp/ssrp_*.run && /tmp/ssrp_*.run
 
 ---
 
-## 📋 更新日志 (v20260515c)
+## 📋 更新日志 (v20260515e)
 
 | 说明 |
 |------|
-| **`@china` nftset 分批加载** — 单次几万条 `nft add element` 在路由器上会被内核静默截断，导致 `@china` 为空，"绕过大陆 IP"模式下所有 TCP/UDP 都落入末位代理规则。新增 `nft_load_china_set` 分 500 条流式写入并校验锚点 IP（`ssr-rules`）。 |
-| **`chinadns_forward` UCI 兜底** — LuCI sync-apply / DNS-flush 会瞬间清空 `chinadns_forward`，没默认值时 init.d 静默跌入"直通 WAN DNS"分支，dnsmasq 改用 112.x 运营商 DNS，结果 LAN 拿到 GFW 污染的 google/youtube IP，baidu/qq/bili 拿到海外 CDN IP。init.d 在两处 lookup 都 fallback 到 AliDNS `223.5.5.5:53`（`shadowsocksr.init.remote.sh`）。 |
-| **`.gitattributes` 根治 CRLF** — Windows `core.autocrlf=true` 让 `.sh`/`.lua`/`.htm` 进 git 后变 CRLF，部署到 Linux 路由器时 shebang 变成 `#!/bin/sh\r`（"not found"），LuCI 模板报 `unfinished string near "'"`。`.sh`/`.lua`/`.htm`/`.conf`/`.cron`/`.list`/`.txt`/`.json`/`.yaml`/`.md` 强制 `eol=lf`；`.ps1`/`.bat`/`.cmd` 保留 CRLF；`.run`/`.tar.gz` 等标记 binary。 |
-| **删除 `chinadns-ng -f`** — 2024+ 版本 `-f` 已是 nop（`fair mode is the only mode now`），保留只是 args 噪音。 |
+| **`nft_load_china_set` 参数解析修复（关键）** — 函数签名只取 3 个位置参数 `<table> <set> [file]`，但调用站每次传 4 个 (`inet ss_spec china /etc/ssrplus/china_ssr.txt`)，结果第 3 个参数 `china` 被当成文件路径，永远返回 `china route file missing: china`，**`@china` 集合一直没被加载**。之所以表面看起来在工作，是因为旧版 persistence 文件残留了真实数据；一旦那个 persistence 被任何重建动作刷新，`@china` 变空，所有 TCP/UDP 落入末位代理规则。函数签名改为 4 个参数 `<family> <table> <set> [file]`，并把内部所有 `nft add/get element` 改用三段 family/table/set（`ssr-rules`）。 |
+| **chinadns-ng chnroute 走 nftset 路径** — `-4 china` 是旧 ipset 语法，新版 chinadns-ng (2024+) 看到没 `@` 的 setname 会去找 ipset → 本路由器只有 nftables → chnroute 永远 fail → 所有 chnlist 答复都被忽略，trusted 答复（走代理出口的 1.1.1.1，加拿大 GeoDNS）总是胜出 → baidu/qq/bili 拿到 `103.235.46.x` / 腾讯云海外 / Akamai 海外。改成 `-4 inet@ss_spec@china -6 inet@ss_spec@china6`（`shadowsocksr.init.remote.sh`）。 |
+| **`china6` IPv6 nftset 持久化** — chinadns-ng 在 `-4` 用 nftset 路径时强制把 `-6` 默认值（`chnroute6`）也按 nftset 解析，没 `@` → `invalid family: 'chnroute6'` → 启动失败。`ssr-rules` 的 `ipset_nft()` 在主 `china` set 旁创建空的 `china6 (ipv6_addr; interval; auto-merge)`，daemon 的 persistence exporter 自动把它写进 `99-shadowsocksr.nft`，重启后仍然存在。 |
+| **`@china` nftset 分批加载** — 单次几万条 `nft add element` 在路由器上会被内核静默截断。`nft_load_china_set` 分 500 条流式写入并校验锚点 IP。 |
+| **`chinadns_forward` UCI 兜底** — LuCI sync-apply / DNS-flush 会瞬间清空 `chinadns_forward`，没默认值时 init.d 静默跌入"直通 WAN DNS"分支。在两处 lookup 都 fallback 到 AliDNS `223.5.5.5:53`。 |
+| **`.gitattributes` 根治 CRLF** — Windows `core.autocrlf=true` 让 `.sh`/`.lua`/`.htm` 进 git 后变 CRLF。`.sh`/`.lua`/`.htm`/`.conf`/`.cron`/`.list`/`.txt`/`.json`/`.yaml`/`.md` 强制 `eol=lf`；`.ps1`/`.bat`/`.cmd` 保留 CRLF；`.run`/`.tar.gz` 等标记 binary。 |
+| **删除 `chinadns-ng -f`** — 2024+ 版本 `-f` 已是 nop（`fair mode is the only mode now`）。 |
 
-完整更新说明：[docs/releases/ssrplus-enhanced-20260515c.md](docs/releases/ssrplus-enhanced-20260515c.md)
+完整更新说明：[docs/releases/ssrplus-enhanced-20260515e.md](docs/releases/ssrplus-enhanced-20260515e.md)
 
 历史版本（按时间倒序）：
+[20260515c](docs/releases/ssrplus-enhanced-20260515c.md) ·
 [20260517](docs/releases/ssrplus-enhanced-20260517.md) ·
 [20260516](docs/releases/ssrplus-enhanced-20260516.md) ·
 [20260515](docs/releases/ssrplus-enhanced-20260515.md) ·
