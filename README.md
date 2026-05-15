@@ -15,13 +15,13 @@ Router Plugin Hub 是面向路由器插件增强开发的总仓库，统一管�
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | **20260511** |
+| 版本 | **v20260515c** |
 | 平台 | GL-BE3600 / aarch64_cortex-a53 / OpenWrt r126 |
-| 完整包体积 | 约 **52 MB**（`build-full-package-from-upstream.ps1`；含 ipk/depends） |
-| 安装包文件名 | `ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run` |
-| 本仓库构建路径 | `packages/ssrplus-enhanced/release/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run` |
-| 校验 | 同目录 `SHA256SUMS.txt`（与发布说明一致） |
-| 下载 | [Release 页面](https://github.com/vansteebot/router-plugin-hub/releases/tag/ssrplus-enhanced-20260511) · [直链 `.run`](https://github.com/vansteebot/router-plugin-hub/releases/download/ssrplus-enhanced-20260511/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run) · [全部 Releases](https://github.com/vansteebot/router-plugin-hub/releases) |
+| 完整包体积 | 约 **54.4 MB**（`build-full-package-from-upstream.ps1`；含 ipk/depends） |
+| 安装包文件名 | `ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515c.run` |
+| 本仓库构建路径 | `packages/ssrplus-enhanced/release/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515c/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515c.run` |
+| 校验 | SHA256 `072d4f9f150c5c1e9401717a1937ce57d090d9f5c5a944281d744a91a67edfd6` |
+| 下载 | [Release 页面](https://github.com/vansteebot/router-plugin-hub/releases/tag/v20260515c) · [直链 `.run`](https://github.com/vansteebot/router-plugin-hub/releases/download/v20260515c/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260515c.run) · [全部 Releases](https://github.com/vansteebot/router-plugin-hub/releases) |
 
 ### 安装方式
 
@@ -63,15 +63,26 @@ chmod +x /tmp/ssrp_*.run && /tmp/ssrp_*.run
 
 ---
 
-## 📋 更新日志 (20260511)
+## 📋 更新日志 (v20260515c)
 
 | 说明 |
 |------|
-| 修复切换节点后通过 **127.0.0.1** 解析节点域名导致的 DNS 污染、UCI `ip` 写错、谷歌等无法打开（`sync-apply.lua` + `shadowsocksr.init.remote.sh`）。 |
+| **`@china` nftset 分批加载** — 单次几万条 `nft add element` 在路由器上会被内核静默截断，导致 `@china` 为空，"绕过大陆 IP"模式下所有 TCP/UDP 都落入末位代理规则。新增 `nft_load_china_set` 分 500 条流式写入并校验锚点 IP（`ssr-rules`）。 |
+| **`chinadns_forward` UCI 兜底** — LuCI sync-apply / DNS-flush 会瞬间清空 `chinadns_forward`，没默认值时 init.d 静默跌入"直通 WAN DNS"分支，dnsmasq 改用 112.x 运营商 DNS，结果 LAN 拿到 GFW 污染的 google/youtube IP，baidu/qq/bili 拿到海外 CDN IP。init.d 在两处 lookup 都 fallback 到 AliDNS `223.5.5.5:53`（`shadowsocksr.init.remote.sh`）。 |
+| **`.gitattributes` 根治 CRLF** — Windows `core.autocrlf=true` 让 `.sh`/`.lua`/`.htm` 进 git 后变 CRLF，部署到 Linux 路由器时 shebang 变成 `#!/bin/sh\r`（"not found"），LuCI 模板报 `unfinished string near "'"`。`.sh`/`.lua`/`.htm`/`.conf`/`.cron`/`.list`/`.txt`/`.json`/`.yaml`/`.md` 强制 `eol=lf`；`.ps1`/`.bat`/`.cmd` 保留 CRLF；`.run`/`.tar.gz` 等标记 binary。 |
+| **删除 `chinadns-ng -f`** — 2024+ 版本 `-f` 已是 nop（`fair mode is the only mode now`），保留只是 args 噪音。 |
 
-完整更新说明：[docs/releases/ssrplus-enhanced-20260511.md](docs/releases/ssrplus-enhanced-20260511.md)
+完整更新说明：[docs/releases/ssrplus-enhanced-20260515c.md](docs/releases/ssrplus-enhanced-20260515c.md)
 
-历史版本：[docs/releases/ssrplus-enhanced-20260508.md](docs/releases/ssrplus-enhanced-20260508.md)
+历史版本（按时间倒序）：
+[20260517](docs/releases/ssrplus-enhanced-20260517.md) ·
+[20260516](docs/releases/ssrplus-enhanced-20260516.md) ·
+[20260515](docs/releases/ssrplus-enhanced-20260515.md) ·
+[20260514](docs/releases/ssrplus-enhanced-20260514.md) ·
+[20260513](docs/releases/ssrplus-enhanced-20260513.md) ·
+[20260512](docs/releases/ssrplus-enhanced-20260512.md) ·
+[20260511](docs/releases/ssrplus-enhanced-20260511.md) ·
+[20260508](docs/releases/ssrplus-enhanced-20260508.md)
 
 ---
 
