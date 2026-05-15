@@ -406,23 +406,6 @@ local function extract_public_ipv4(text)
 end
 
 local function get_direct_public_ip()
-	-- Read PPPoE-assigned IPv4 directly from ifstatus first; this is the
-	-- ground truth and never gets confused by external IP-echo services
-	-- whose own IPs happen to fall outside the chnroute set (which made
-	-- the old curl-based probes return the proxy exit IP on overseas nodes).
-	for _, iface in ipairs({ "wan", "wwan" }) do
-		local raw = run_command("ifstatus " .. iface)
-		if raw ~= "" then
-			local ok, parsed = pcall(luci.jsonc.parse, raw)
-			if ok and type(parsed) == "table" and type(parsed["ipv4-address"]) == "table" then
-				for _, entry in ipairs(parsed["ipv4-address"]) do
-					if type(entry) == "table" and entry.address and not entry.address:match("^127%.") then
-						return entry.address
-					end
-				end
-			end
-		end
-	end
 	local endpoints = {
 		"https://myip.ipip.net",
 		"https://ddns.oray.com/checkip",
@@ -579,26 +562,6 @@ build_status_info = function()
 	elseif not info.message or info.message == "" then
 		info.message = info.running and "代理运行中" or "代理未运行"
 	end
-
-	-- Self-heal stale "dns" / "process" errors: the original sync-apply may
-	-- have written an error status when wait_for_processes timed out (chinadns
-	-- often needs more than 45 s on a slow boot, or dns-flush kills it and
-	-- the supervisor takes a few extra seconds to respawn). If everything is
-	-- actually fine now — proxy running AND chinadns-ng (or any DNS helper)
-	-- present — clear the stale error so the UI stops scaring the user.
-	if info.running and not info.ok and (info.phase == "dns" or info.phase == "process") then
-		local dns_alive = (tonumber(run_command("pgrep -c chinadns-ng")) or 0) > 0
-			or (tonumber(run_command("pgrep -c dns2socks")) or 0) > 0
-			or (tonumber(run_command("pgrep -c dns2tcp")) or 0) > 0
-			or (tonumber(run_command("pgrep -c mosdns")) or 0) > 0
-			or (tonumber(run_command("pgrep -c dnsproxy")) or 0) > 0
-		if dns_alive then
-			info.ok = true
-			info.phase = "done"
-			info.ip = ""  -- force re-detection below
-			info.message = "代理链路就绪，正在刷新出口 IP"
-		end
-	end
 	if info.direct_ip == "" then
 		info.direct_ip = get_direct_public_ip()
 	end
@@ -749,7 +712,7 @@ local function resolve_ipv4(domain)
 	if domain:match("^%d+%.%d+%.%d+%.%d+$") then
 		return domain
 	end
-	for _, resolver in ipairs({ "119.29.29.29", "223.5.5.5", "127.0.0.1" }) do
+	for _, resolver in ipairs({ "119.29.29.29", "223.5.5.5", "114.114.114.114" }) do
 		local output = luci.sys.exec("timeout 3 nslookup " .. shell_quote(domain) .. " " .. resolver .. " 2>/dev/null")
 		local answer = false
 		for line in output:gmatch("[^\r\n]+") do
@@ -1038,13 +1001,9 @@ function act_flush_hard()
 	write_json(queue_sync_apply("hard_rebuild", "已提交后台任务，正在彻底清理残留进程并重启代理"))
 end
 
--- Wipe router-side DNS caches (chinadns-ng in-memory + persistent files +
--- dnsmasq LRU) and then queue a rebuild so DNS components come back fresh.
--- Cures stuck overseas-CDN IPs for GeoDNS-aware Chinese sites after switching
--- proxy exits — see dns-flush.sh comment for the full mechanism.
 function act_flush_dns()
 	luci.sys.call("/usr/share/shadowsocksr/dns-flush.sh >/tmp/ssrplus-dns-flush.log 2>&1")
-	write_json(queue_sync_apply("dns_flush", "DNS 缓存已清理，正在重新生效网络"))
+	write_json(queue_sync_apply("rebuild", "DNS 缓存已清理，后台正在重新生效网络"))
 end
 
 function act_toggle_ipv6()

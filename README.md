@@ -15,13 +15,13 @@ Router Plugin Hub 是面向路由器插件增强开发的总仓库，统一管�
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | **20260517** |
+| 版本 | **20260511** |
 | 平台 | GL-BE3600 / aarch64_cortex-a53 / OpenWrt r126 |
-| 完整包体积 | 约 **52 MB**（`build-full-package-from-upstream.ps1`；含 ipk/depends + 增强层 + ChinaDNS TCP 默认 + TCP 持久化校验 + cron 守护） |
-| 安装包文件名 | `ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260517.run` |
-| 本仓库构建路径 | `packages/ssrplus-enhanced/release/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260517/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260517.run` |
+| 完整包体积 | 约 **52 MB**（`build-full-package-from-upstream.ps1`；含 ipk/depends） |
+| 安装包文件名 | `ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run` |
+| 本仓库构建路径 | `packages/ssrplus-enhanced/release/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run` |
 | 校验 | 同目录 `SHA256SUMS.txt`（与发布说明一致） |
-| 下载 | [Release 页面](https://github.com/vansteebot/router-plugin-hub/releases/tag/ssrplus-enhanced-20260517) · [直链 `.run`](https://github.com/vansteebot/router-plugin-hub/releases/download/ssrplus-enhanced-20260517/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260517.run) · [全部 Releases](https://github.com/vansteebot/router-plugin-hub/releases) |
+| 下载 | [Release 页面](https://github.com/vansteebot/router-plugin-hub/releases/tag/ssrplus-enhanced-20260511) · [直链 `.run`](https://github.com/vansteebot/router-plugin-hub/releases/download/ssrplus-enhanced-20260511/ssrp_aarch64_cortex-a53-190_r126_enhanced_full_20260511.run) · [全部 Releases](https://github.com/vansteebot/router-plugin-hub/releases) |
 
 ### 安装方式
 
@@ -63,19 +63,15 @@ chmod +x /tmp/ssrp_*.run && /tmp/ssrp_*.run
 
 ---
 
-## 📋 更新日志 (20260517)
+## 📋 更新日志 (20260511)
 
 | 说明 |
 |------|
-| **关键修复**：切境外节点后国内网站(百度/淘宝/QQ/支付宝/B站)被解析到境外 CDN 并被 chinadns-ng 缓存 1 天。根因:`whitelist_forward.conf` 用 `127.0.0.1` 写死循环没起作用,叠加 chinadns-ng 缓存。修复:白名单 DNS 直接走阿里 DNS 不经过 chinadns,补齐缺失的常见国内域名,**新增「清理 DNS 缓存并生效」按钮**(状态页工具栏)。 |
+| 修复切换节点后通过 **127.0.0.1** 解析节点域名导致的 DNS 污染、UCI `ip` 写错、谷歌等无法打开（`sync-apply.lua` + `shadowsocksr.init.remote.sh`）。 |
 
-完整更新说明：[docs/releases/ssrplus-enhanced-20260517.md](docs/releases/ssrplus-enhanced-20260517.md)
+完整更新说明：[docs/releases/ssrplus-enhanced-20260511.md](docs/releases/ssrplus-enhanced-20260511.md)
 
-历史版本：
-- [20260513](docs/releases/ssrplus-enhanced-20260513.md) — chinadns-ng trusted upstream 默认改 TCP 防 GFW UDP 投毒
-- [20260512](docs/releases/ssrplus-enhanced-20260512.md) — `ssr-rules` 持久化文件半残（缺 TCP 链）被原样恢复导致 TCP 流量直连
-- [20260511](docs/releases/ssrplus-enhanced-20260511.md) — 切换节点经 127.0.0.1 解析导致 DNS 污染
-- [20260508](docs/releases/ssrplus-enhanced-20260508.md)
+历史版本：[docs/releases/ssrplus-enhanced-20260508.md](docs/releases/ssrplus-enhanced-20260508.md)
 
 ---
 

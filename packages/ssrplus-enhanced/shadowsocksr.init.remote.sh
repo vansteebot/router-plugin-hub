@@ -324,13 +324,6 @@ start_dns() {
 			;;
 		6)
 			local chinadns_ng_proto="$(uci_get_by_type global chinadns_ng_proto)"
-			# Default upstream protocol to TCP when unset. Plain UDP queries to
-			# 1.1.1.1/8.8.8.8 from inside China get GFW-spoofed (www.google.com
-			# resolves to a Twitter IP, www.youtube.com to a Facebook IP), which
-			# makes Google/YouTube unreachable via HK exits even though the
-			# proxy itself works. TCP queries survive GFW spoofing. Users who
-			# specifically want UDP can still set chinadns_ng_proto=none.
-			[ -z "$chinadns_ng_proto" ] && chinadns_ng_proto="tcp"
 			local chinadns_ng_dns=""
 			# 遍历每个 DNS 服务器
 			IFS=','  # 设置分隔符为逗号
@@ -365,25 +358,31 @@ start_dns() {
 
 		if [ "$run_mode" = "router" ]; then
 			local chinadns="$(uci_get_by_type global chinadns_forward)"
-			# Auto-enable ChinaDNS when in router (bypass China) mode
-			if [ -z "$chinadns" ]; then
-				chinadns="wan_114"
-				uci_set_by_type global chinadns_forward "$chinadns"
-				uci commit shadowsocksr 2>/dev/null
-			fi
 			local wandns="$(ifstatus wan | jsonfilter -e '@["dns-server"][0]' || echo "119.29.29.29")"
-			case "$chinadns" in
-			"wan") chinadns="$wandns" ;;
-			"wan_114") chinadns="$wandns,114.114.114.114" ;;
-			esac
+			# 国内 DNS「直通模式」(chinadns_forward 为空)：dnsmasq 直连 WAN DNS，不走 5333 的 chinadns-ng。
+			# 禁止在此处把空值改回 wan_114，否则用户在 LuCI 选的「禁用 ChinaDNS-NG」会被覆盖，
+			# 国内域名仍经代理侧 DNS 解析，得到海外 CDN IP，再因不在 china 路由表内而全部走代理。
+			if [ -n "$chinadns" ]; then
+				case "$chinadns" in
+				"wan") chinadns="$wandns" ;;
+				"wan_114") chinadns="$wandns,114.114.114.114" ;;
+				esac
 
-			ln_start_bin $(first_type chinadns-ng) chinadns-ng -l $china_dns_port -4 china -p 3 -c ${chinadns/:/#} -t 127.0.0.1#$dns_port -N -f -r
+				ln_start_bin $(first_type chinadns-ng) chinadns-ng -l $china_dns_port -4 china -p 3 -c ${chinadns/:/#} -t 127.0.0.1#$dns_port -N -f -r
 
-			cat <<-EOF >> "$TMP_DNSMASQ_PATH/chinadns_fixed_server.conf"
-				no-poll
-				no-resolv
-				server=127.0.0.1#$china_dns_port
-			EOF
+				cat <<-EOF >> "$TMP_DNSMASQ_PATH/chinadns_fixed_server.conf"
+					no-poll
+					no-resolv
+					server=127.0.0.1#$china_dns_port
+				EOF
+			else
+				cat <<-EOF >> "$TMP_DNSMASQ_PATH/chinadns_fixed_server.conf"
+					no-poll
+					no-resolv
+					server=$wandns
+				EOF
+				echolog "绕过大陆模式：国内 DNS 直通 WAN ($wandns)，未启动 domestic chinadns-ng"
+			fi
 		fi
 	fi
 

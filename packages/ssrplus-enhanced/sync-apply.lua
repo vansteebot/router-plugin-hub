@@ -171,30 +171,6 @@ local function extract_public_ipv4(text)
 end
 
 local function get_direct_public_ip()
-	-- Read the WAN's actual PPPoE-assigned IPv4 directly from ifstatus first.
-	-- This is the ground truth — never affected by which exit the proxy is on,
-	-- never affected by GeoDNS, never round-trips an HTTP probe through the
-	-- proxy by mistake. The previous "curl an external IP echo service"
-	-- approach was a known footgun: myip.ipip.net / ddns.oray.com / ip.3322.net
-	-- all resolve to servers that aren't in the chnroute set on this router,
-	-- so when the proxy exit was overseas, every probe came back with the
-	-- proxy exit IP instead of the WAN IP, making the status page useless.
-	for _, iface in ipairs({ "wan", "wwan" }) do
-		local raw = exec("ifstatus " .. iface .. " 2>/dev/null")
-		if raw ~= "" then
-			local ok, parsed = pcall(jsonc.parse, raw)
-			if ok and type(parsed) == "table" and type(parsed["ipv4-address"]) == "table" then
-				for _, entry in ipairs(parsed["ipv4-address"]) do
-					if type(entry) == "table" and entry.address and not entry.address:match("^127%.") then
-						return entry.address
-					end
-				end
-			end
-		end
-	end
-	-- Fallback: external probe. Kept for cases where ifstatus is unavailable
-	-- (non-OpenWrt environments) but with the understanding that this path
-	-- can return the proxy exit IP when the user is on an overseas node.
 	local endpoints = {
 		"https://myip.ipip.net",
 		"https://ddns.oray.com/checkip",
@@ -385,25 +361,6 @@ local function dns_chain_ready(helper)
 		end
 	end
 	return false
-end
-
-local function resolve_ipv4(domain)
-	if not domain or domain == "" then
-		return ""
-	end
-	local output = exec("nslookup " .. shell_quote(domain) .. " 127.0.0.1")
-	local answer = false
-	for line in output:gmatch("[^\r\n]+") do
-		if line:match("^Name:") or line:match("^[Nn]on%-authoritative answer:") then
-			answer = true
-		elseif answer then
-			local value = line:match("Address[^:]*:%s*([0-9%.]+)")
-			if value and value ~= "127.0.0.1" then
-				return value
-			end
-		end
-	end
-	return ""
 end
 
 local function nft_bypass_sets()
@@ -635,9 +592,8 @@ local function wait_for_processes(active)
 	end
 	local helper = dns_helper_name(uci:get_first("shadowsocksr", "global", "pdnsd_enable", "0"))
 	local need_obfs = requires_obfs(active.section)
-	-- 路由器切换链路时会重启 dns2tcp/chinadns-ng；低端设备上偶发 >25s 仍属正常，避免误判进入重试风暴。
-	-- dns_flush 之后 chinadns-ng 需要被监督进程完全拉起，留出更长缓冲。
-	local deadline = os.time() + 75
+	-- 路由器切换链路时会重启 dns2tcp/chinadns-ng；低端设备上偶发 >25s 仍属正常，避免误判进入重试风暴
+	local deadline = os.time() + 45
 	while os.time() <= deadline do
 		local has_proxy = main_proxy_ready(active.section)
 		local has_dns = dns_chain_ready(helper)
@@ -671,7 +627,7 @@ local function probe_active_node(active)
 	if not active or not active.server or active.server == "" or not active.port or active.port == "" then
 		return result
 	end
-	local target = resolve_ipv4(active.server)
+	local target = resolve_ipv4_stable(active.server)
 	if target ~= "" then
 		result.target = target
 	end
@@ -741,6 +697,18 @@ local function perform_restart(active, reason, opts)
 	ensure_dnsmasq_nft_compat()
 	call("killall -HUP dnsmasq >/dev/null 2>&1 || /etc/init.d/dnsmasq restart >/dev/null 2>&1 || true")
 	call("conntrack -F >/dev/null 2>&1 || true")
+
+	-- 绕过大陆模式依赖 @china 路由表；若加载失败则国内 IP 会全部走代理。
+	local run_mode = uci:get_first("shadowsocksr", "global", "run_mode") or "router"
+	if run_mode == "router" and call("command -v nft >/dev/null 2>&1") == 0 then
+		if call("nft get element inet ss_spec china { 223.5.5.5 } >/dev/null 2>&1") ~= 0 and \
+		   call("nft get element inet ss_spec china { 1.0.0.0 } >/dev/null 2>&1") ~= 0 then
+			call("rm -f /usr/share/nftables.d/ruleset-post/99-shadowsocksr.nft >/dev/null 2>&1 || true")
+			call("/etc/init.d/shadowsocksr restart >>" .. LOG_FILE .. " 2>&1")
+			call("killall -HUP dnsmasq >/dev/null 2>&1 || /etc/init.d/dnsmasq restart >/dev/null 2>&1 || true")
+			call("conntrack -F >/dev/null 2>&1 || true")
+		end
+	end
 
 	local ok, phase, message = wait_for_processes(active)
 	local probe = probe_active_node(active)
@@ -890,7 +858,7 @@ local function run_main()
 	data.probe_target = probe.target
 
 	local should_retry = (not hard_rebuild)
-		and (reason == "apply" or reason == "rebuild" or reason == "restart" or reason == "dns_flush")
+		and (reason == "apply" or reason == "rebuild" or reason == "restart")
 		and ((ret ~= 0 and not ok) or not ok)
 	if should_retry then
 		write_status({

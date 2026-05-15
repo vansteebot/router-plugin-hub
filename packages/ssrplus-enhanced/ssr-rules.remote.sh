@@ -313,6 +313,62 @@ ipset_r() {
 	return $?
 }
 
+# 分批写入 china 路由表。单次 `nft add element { 数万条 }` 在路由器上常静默失败，
+# 导致 @china 为空 → 绕过大陆模式下所有流量落入最后一条「走代理」规则。
+nft_load_china_set() {
+	local table="$1"
+	local setname="$2"
+	local china_file="${3:-/etc/ssrplus/china_ssr.txt}"
+	local batch_size=500
+	local batch=""
+	local batch_count=0
+	local line_count=0
+
+	[ -f "$china_file" ] || {
+		loger 3 "china route file missing: $china_file"
+		return 1
+	}
+
+	flush_batch() {
+		[ -n "$batch" ] || return 0
+		if ! $NFT add element "$table" "$setname" "{ $batch }" 2>/dev/null; then
+			loger 4 "china set batch add failed ($table $setname, ~$batch_count elems)"
+		fi
+		batch=""
+		batch_count=0
+	}
+
+	while IFS= read -r line || [ -n "$line" ]; do
+		line=$(echo "$line" | tr -d '\r')
+		[ -z "$line" ] && continue
+		case "$line" in \#*) continue ;; esac
+		line_count=$((line_count + 1))
+		if [ -n "$batch" ]; then
+			batch="$batch,$line"
+		else
+			batch="$line"
+		fi
+		batch_count=$((batch_count + 1))
+		if [ "$batch_count" -ge "$batch_size" ]; then
+			flush_batch
+		fi
+	done < "$china_file"
+	flush_batch
+
+	if [ "$line_count" -lt 1000 ]; then
+		loger 3 "china route file too small ($line_count lines) — domestic bypass may fail"
+		return 1
+	fi
+
+	if $NFT get element "$table" "$setname" { 1.0.0.0 } >/dev/null 2>&1 || \
+	   $NFT get element "$table" "$setname" { 223.5.5.5 } >/dev/null 2>&1; then
+		loger 6 "china set loaded into $table $setname (~$line_count lines from file)"
+		return 0
+	fi
+	loger 3 "china set verify failed for $table $setname (~$line_count lines) — traffic may all use proxy"
+	return 1
+}
+
 ipset_nft() {
 	# Create nftables table and sets
 	if ! $NFT list table inet ss_spec >/dev/null 2>&1; then
@@ -328,10 +384,7 @@ ipset_nft() {
 		fi
 	done
 
-	# Bulk import china ip list safely (avoid huge single element limitation)
-	if [ -f "${china_ip:=/etc/ssrplus/china_ssr.txt}" ]; then
-		$NFT add element inet ss_spec china "{ $(tr '\n' ',' < "${china_ip}" | sed 's/,$//') }" 2>/dev/null
-	fi
+	nft_load_china_set inet ss_spec china "${china_ip:=/etc/ssrplus/china_ssr.txt}"
 
 	# Populate domestic_dns_servers with the IPs chinadns-ng and dnsmasq query
 	# for "is this domain Chinese?" resolution. These queries MUST go out via WAN
@@ -985,10 +1038,7 @@ tp_rule_nft() {
 		fi
 	done
 
-	# Bulk import china ip list safely (avoid huge single element limitation)
-	if [ -f "${china_ip:=/etc/ssrplus/china_ssr.txt}" ]; then
-		$NFT add element ip ss_spec_mangle china "{ $(tr '\n' ',' < "${china_ip}" | sed 's/,$//') }" 2>/dev/null
-	fi
+	nft_load_china_set ip ss_spec_mangle china "${china_ip:=/etc/ssrplus/china_ssr.txt}"
 
 	# Bulk import xhttp ip list into nft whitelist (server + shunt)
 	if [ -f "${xhttp_ip:=/etc/ssrplus/xhttp_address.txt}" ]; then
