@@ -315,10 +315,14 @@ ipset_r() {
 
 # 分批写入 china 路由表。单次 `nft add element { 数万条 }` 在路由器上常静默失败，
 # 导致 @china 为空 → 绕过大陆模式下所有流量落入最后一条「走代理」规则。
+#
+# Usage: nft_load_china_set <family> <table> <set> [file]
+# Example: nft_load_china_set inet ss_spec china /etc/ssrplus/china_ssr.txt
 nft_load_china_set() {
-	local table="$1"
-	local setname="$2"
-	local china_file="${3:-/etc/ssrplus/china_ssr.txt}"
+	local family="$1"
+	local table="$2"
+	local setname="$3"
+	local china_file="${4:-/etc/ssrplus/china_ssr.txt}"
 	local batch_size=500
 	local batch=""
 	local batch_count=0
@@ -331,8 +335,8 @@ nft_load_china_set() {
 
 	flush_batch() {
 		[ -n "$batch" ] || return 0
-		if ! $NFT add element "$table" "$setname" "{ $batch }" 2>/dev/null; then
-			loger 4 "china set batch add failed ($table $setname, ~$batch_count elems)"
+		if ! $NFT add element "$family" "$table" "$setname" "{ $batch }" 2>/dev/null; then
+			loger 4 "china set batch add failed ($family $table $setname, ~$batch_count elems)"
 		fi
 		batch=""
 		batch_count=0
@@ -360,12 +364,12 @@ nft_load_china_set() {
 		return 1
 	fi
 
-	if $NFT get element "$table" "$setname" { 1.0.0.0 } >/dev/null 2>&1 || \
-	   $NFT get element "$table" "$setname" { 223.5.5.5 } >/dev/null 2>&1; then
-		loger 6 "china set loaded into $table $setname (~$line_count lines from file)"
+	if $NFT get element "$family" "$table" "$setname" { 1.0.0.0 } >/dev/null 2>&1 || \
+	   $NFT get element "$family" "$table" "$setname" { 223.5.5.5 } >/dev/null 2>&1; then
+		loger 6 "china set loaded into $family $table $setname (~$line_count lines from file)"
 		return 0
 	fi
-	loger 3 "china set verify failed for $table $setname (~$line_count lines) — traffic may all use proxy"
+	loger 3 "china set verify failed for $family $table $setname (~$line_count lines) — traffic may all use proxy"
 	return 1
 }
 
