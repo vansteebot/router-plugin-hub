@@ -60,8 +60,8 @@
 		border: 1px solid #f2c3c3;
 	}
 	.ssrplus-disabled-control {
-		opacity: 0.6;
-		cursor: not-allowed !important;
+		opacity: 1;
+		cursor: pointer;
 	}
 	tr[draggable="true"] {
 		cursor: move;
@@ -101,6 +101,7 @@ window.addEventListener('load', function () {
 		total: doms.length,
 		concurrency: 2
 	};
+	// applyLocked永远为 false:后台 sync-apply 有自己的 lockfile,UI 不再阻塞用户操作。
 	let applyLocked = false;
 
 	function setStatus(text, type) {
@@ -113,12 +114,12 @@ window.addEventListener('load', function () {
 
 	function setButtons() {
 		if (runButton) {
-			runButton.disabled = state.running || applyLocked;
+			runButton.disabled = state.running;
 		}
 		if (stopButton) {
-			stopButton.disabled = !state.running || applyLocked;
+			stopButton.disabled = !state.running;
 		}
-		setSinglePingClickable(!(state.running || applyLocked));
+		setSinglePingClickable(!state.running);
 	}
 
 	function setSinglePingClickable(enabled) {
@@ -130,30 +131,26 @@ window.addEventListener('load', function () {
 		});
 	}
 
-	function lockApplyControls(busy) {
-		const selectors = [
-			'input.cbi-button-apply',
-			'button.cbi-button-apply',
-			'input.cbi-button-save',
-			'button.cbi-button-save',
-			'input.cbi-button-positive',
-			'button.cbi-button-positive'
-		];
-		document.querySelectorAll(selectors.join(',')).forEach(function(button) {
-			if (!button) {
-				return;
-			}
-			button.disabled = busy;
-			button.classList.toggle('ssrplus-disabled-control', busy);
-		});
+	function lockApplyControls(_busy) {
+		// no-op: never lock apply/save buttons.
 		setButtons();
 	}
 
-	function statusIsBusy(data) {
-		if (!data || !data.phase) {
+	function statusIsBusy(_data) {
+		return false;
+	}
+
+	function proxyHealthy(data) {
+		if (!data || !data.running) {
 			return false;
 		}
-		return ['queued', 'prepare', 'restart', 'retry', 'cleanup', 'busy'].indexOf(data.phase) !== -1;
+		if (!data.ip || data.ip === '') {
+			return false;
+		}
+		if (data.direct_ip && data.direct_ip !== '' && data.ip === data.direct_ip) {
+			return false;
+		}
+		return true;
 	}
 
 	function refreshApplyLock() {
@@ -161,10 +158,25 @@ window.addEventListener('load', function () {
 			if (!(x && x.status === 200 && data)) {
 				return;
 			}
-			applyLocked = statusIsBusy(data);
-			lockApplyControls(applyLocked);
-			if (applyLocked && !state.running) {
-				setStatus('后台正在生效，请等待当前任务完成', 'warn');
+			// Show a tiny health hint instead of blocking — never overwrite an active batch progress message.
+			if (state.running) {
+				return;
+			}
+			if (data.disabled) {
+				setStatus('主代理已停用，节点切换会自动启用', 'info');
+				return;
+			}
+			if (!data.running) {
+				setStatus('代理未运行，可点击任意节点的“应用”重建链路', 'warn');
+				return;
+			}
+			if (proxyHealthy(data)) {
+				var ip = data.ip || '-';
+				setStatus('代理生效中 · 出口 IP ' + ip, 'success');
+			} else if (data.ip && data.direct_ip && data.ip === data.direct_ip) {
+				setStatus('代理运行中，但出口仍是直连 IP，可能正在切换或节点不可用', 'warn');
+			} else {
+				setStatus('代理运行中，正在等待首次出口探测', 'info');
 			}
 		});
 	}
@@ -327,10 +339,6 @@ window.addEventListener('load', function () {
 			dom.addEventListener('click', function(ev) {
 				ev.preventDefault();
 				ev.stopPropagation();
-				if (applyLocked) {
-					setStatus('后台正在生效，请等待当前任务完成', 'warn');
-					return false;
-				}
 				if (state.running) {
 					setStatus('批量测速进行中，请先停止后再点单节点测速', 'warn');
 					return false;
@@ -361,19 +369,11 @@ window.addEventListener('load', function () {
 				return;
 			}
 			button.setAttribute('data-ssrplus-ping-bound', '1');
-			button.addEventListener('click', function(ev) {
-				if (applyLocked) {
-					ev.preventDefault();
-					ev.stopPropagation();
-					setStatus('后台正在生效，请等待当前任务完成', 'warn');
-					return false;
-				}
-				applyLocked = true;
-				lockApplyControls(true);
+			button.addEventListener('click', function(_ev) {
 				if (state.running) {
 					stopBatchPing();
 				}
-				setStatus('节点切换中，已暂停测速，等待后台完成重建', 'warn');
+				setStatus('配置已提交，后台正在生效，状态会自动刷新', 'info');
 			});
 		});
 	}
@@ -413,18 +413,14 @@ window.addEventListener('load', function () {
 	function queueNodeApply(section) {
 		if (!section) {
 			setStatus('未能识别当前节点，请刷新页面后重试', 'error');
-			applyLocked = false;
-			lockApplyControls(false);
 			return;
 		}
 		XHR.get(applySyncUrl, { section: section }, function(x, data) {
 			if (!(x && x.status === 200 && data)) {
-				applyLocked = false;
-				lockApplyControls(false);
 				setStatus('节点切换请求失败，请稍后重试', 'error');
 				return;
 			}
-			setStatus(data.message || '节点已保存，后台正在切换并重建代理链路', data.ok ? 'warn' : 'error');
+			setStatus(data.message || '节点已保存，后台正在切换并重建代理链路', data.ok ? 'info' : 'error');
 			window.setTimeout(function() {
 				window.location.reload();
 			}, 600);
@@ -442,16 +438,10 @@ window.addEventListener('load', function () {
 				const section = rowSection(button);
 				ev.preventDefault();
 				ev.stopPropagation();
-				if (applyLocked) {
-					setStatus('后台正在生效，请等待当前任务完成', 'warn');
-					return false;
-				}
-				applyLocked = true;
-				lockApplyControls(true);
 				if (state.running) {
 					stopBatchPing();
 				}
-				setStatus('节点已保存，后台正在切换并重建代理链路', 'warn');
+				setStatus('节点已保存，后台正在切换并重建代理链路', 'info');
 				queueNodeApply(section);
 				return false;
 			});

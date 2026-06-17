@@ -501,17 +501,9 @@ end
 local build_status_info
 
 local function queue_sync_apply(reason, message)
-	if sync_apply_is_running() then
-		local current = build_status_info()
-		current.ok = false
-		current.queued = false
-		current.phase = "busy"
-		current.message = "已有后台生效任务正在运行，请等待当前任务完成"
-		current.reason = reason or current.reason or "apply"
-		current.time = now_string()
-		write_status_file(current)
-		return current
-	end
+	-- Always accept; never short-circuit with a "busy" error. The lockfile inside
+	-- sync-apply.lua serializes execution; if a task is already running, we just
+	-- record the new request as queued and skip spawning a duplicate.
 	local queued = build_status_info()
 	queued.ok = true
 	queued.queued = true
@@ -520,7 +512,9 @@ local function queue_sync_apply(reason, message)
 	queued.reason = reason or "apply"
 	queued.time = now_string()
 	write_status_file(queued)
-	luci.sys.call("( " .. build_sync_apply_command(reason) .. " >/tmp/ssrplus-sync-apply-bg.log 2>&1 ) &")
+	if not sync_apply_is_running() then
+		luci.sys.call("( " .. build_sync_apply_command(reason) .. " >/tmp/ssrplus-sync-apply-bg.log 2>&1 ) &")
+	end
 	return queued
 end
 
@@ -565,9 +559,13 @@ build_status_info = function()
 	if info.direct_ip == "" then
 		info.direct_ip = get_direct_public_ip()
 	end
-	if sync_apply_is_running() and info.phase ~= "busy" then
-		info.phase = info.phase == "queued" and "queued" or "busy"
-		info.message = "后台生效任务正在运行，按钮已锁定，请等待完成"
+	-- Backend lockfile serializes sync-apply; UI never blocks on transient phases.
+	-- We keep the phase string (queued/restart/...) for diagnostics, but do NOT
+	-- coerce it to "busy" and do NOT overwrite the user-facing message.
+	if sync_apply_is_running() then
+		if info.phase ~= "queued" and info.phase ~= "prepare" and info.phase ~= "restart" and info.phase ~= "retry" and info.phase ~= "cleanup" then
+			info.phase = info.phase or "restart"
+		end
 	end
 	if (not info.disabled) and info.running and ((not info.ip or info.ip == "") or info.phase == "verify_warn") then
 		local current_ip = get_public_ip(1, 0)

@@ -12,9 +12,7 @@
 		disabled: true,
 		process: true,
 		error: true,
-		restart_failed: true
-	};
-	var ssrBusyPhases = {
+		restart_failed: true,
 		queued: true,
 		prepare: true,
 		restart: true,
@@ -22,6 +20,8 @@
 		cleanup: true,
 		busy: true
 	};
+	// Buttons are never locked — backend has its own lockfile.
+	var ssrBusyPhases = {};
 	window.__ssrLastStatusData = null;
 
 	function ssrEscapeHtml(text) {
@@ -120,39 +120,26 @@
 		});
 	}
 
-	function ssrIsBusy(data) {
-		return !!(data && data.phase && ssrBusyPhases[data.phase]);
+	function ssrIsBusy(_data) {
+		// UI never blocks on transient backend phases. Backend serializes via lockfile.
+		return false;
 	}
 
-	function ssrLockInteractiveControls(busy) {
-		var selectors = [
-			'.ssrplus-toolbar .cbi-button',
-			'.cbi-page-actions .cbi-button',
-			'input.cbi-button-apply',
-			'button.cbi-button-apply',
-			'input.cbi-button-save',
-			'button.cbi-button-save',
-			'input.cbi-button-positive',
-			'button.cbi-button-positive'
-		];
-		var buttons = document.querySelectorAll(selectors.join(','));
-		buttons.forEach(function(button) {
-			if (!button) {
-				return;
-			}
-			var clickedBusyButton = button.closest('.ssrplus-toolbar') && button.hasAttribute('data-label');
-			if (busy) {
-				if (!clickedBusyButton) {
-					button.disabled = true;
-				}
-				button.classList.add('ssrplus-disabled-control');
-			} else {
-				if (!clickedBusyButton) {
-					button.disabled = false;
-				}
-				button.classList.remove('ssrplus-disabled-control');
-			}
-		});
+	function ssrLockInteractiveControls(_busy) {
+		// no-op: buttons stay clickable; the only feedback channel is the status strip.
+	}
+
+	function ssrProxyHealthy(data) {
+		if (!data || !data.running) {
+			return false;
+		}
+		if (!data.ip || data.ip === '') {
+			return false;
+		}
+		if (data.direct_ip && data.direct_ip !== '' && data.ip === data.direct_ip) {
+			return false;
+		}
+		return true;
 	}
 
 	function ssrFeedbackLevel(data) {
@@ -347,7 +334,13 @@
 			if (data && data.disabled) {
 				status.innerHTML = '<em><b style="color:#7a7a7a">ShadowsocksR Plus+ 主代理已停用</b></em>';
 			} else if (data && data.running) {
-				status.innerHTML = '<em><b style="color:green">ShadowsocksR Plus+ 运行中</b></em>';
+				if (ssrProxyHealthy(data)) {
+					status.innerHTML = '<em><b style="color:green">ShadowsocksR Plus+ 运行中 · 代理出口已生效</b></em>';
+				} else if (data.ip && data.direct_ip && data.ip === data.direct_ip) {
+					status.innerHTML = '<em><b style="color:#b35200">ShadowsocksR Plus+ 运行中 · 出口仍是直连 IP，代理未生效</b></em>';
+				} else {
+					status.innerHTML = '<em><b style="color:#1f4f96">ShadowsocksR Plus+ 运行中 · 等待首次出口探测</b></em>';
+				}
 			} else {
 				status.innerHTML = '<em><b style="color:red">ShadowsocksR Plus+ 未运行</b></em>';
 			}
@@ -364,7 +357,11 @@
 			currentServer.innerHTML = ssrEscapeHtml(serverText);
 		}
 		if (currentPhase) {
-			currentPhase.innerHTML = ssrEscapeHtml((data && data.phase) || 'idle');
+			var phaseText = (data && data.phase) || 'idle';
+			if (data && data.running && ssrProxyHealthy(data)) {
+				phaseText = '生效中 (' + phaseText + ')';
+			}
+			currentPhase.innerHTML = ssrEscapeHtml(phaseText);
 		}
 		if (currentIp) {
 			currentIp.innerHTML = ssrEscapeHtml((data && data.ip) || '-');
@@ -373,7 +370,6 @@
 		ssrSetModeActive((data && data.ipv6_mode) || 'off');
 		ssrWriteFeedback(ssrFeedbackLevel(data), data || { message: '等待状态更新' });
 		window.__ssrLastStatusData = data || null;
-		ssrLockInteractiveControls(ssrIsBusy(data));
 		ssrMaybeNotify(data);
 	}
 
@@ -386,16 +382,8 @@
 	}
 
 	function ssrPostAction(url, payload, button, busyText) {
-		if (ssrIsBusy(window.__ssrLastStatusData)) {
-			ssrWriteFeedback('info', {
-				message: '后台任务仍在运行，请等待当前任务完成',
-				phase: (window.__ssrLastStatusData && window.__ssrLastStatusData.phase) || 'busy'
-			});
-			return false;
-		}
 		ssrArmNotice();
 		ssrSetBusy(button, true, busyText);
-		ssrLockInteractiveControls(true);
 		XHR.post(url, payload || {}, function(x, data) {
 			ssrSetBusy(button, false);
 			if (x && x.status === 200 && data) {
@@ -403,7 +391,6 @@
 				return;
 			}
 			ssrWriteFeedback('error', { message: '操作失败，请稍后重试', phase: 'error' });
-			ssrLockInteractiveControls(false);
 		});
 		return false;
 	}
@@ -497,8 +484,8 @@
 	}
 
 	.ssrplus-disabled-control {
-		opacity: 0.65;
-		pointer-events: none;
+		opacity: 1;
+		pointer-events: auto;
 	}
 
 	.ssrplus-strip {

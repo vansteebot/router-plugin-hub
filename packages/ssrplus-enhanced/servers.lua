@@ -287,21 +287,8 @@ node.write = function(self, section)
 	local server = uci:get("shadowsocksr", section, "server") or ""
 	local port = uci:get("shadowsocksr", section, "server_port") or ""
 	local reason = "node:" .. tostring(section)
-	if sync_apply_is_running() then
-		write_status_file({
-			ok = false,
-			queued = false,
-			phase = "busy",
-			message = "已有后台生效任务正在运行，请等待当前任务完成后再切换节点",
-			reason = reason,
-			active = alias,
-			active_section = section,
-			server = server,
-			port = port
-		})
-		luci.http.redirect(luci.dispatcher.build_url("admin", "services", "shadowsocksr", "servers"))
-		return
-	end
+	-- Always accept the request. Backend sync-apply uses a lockfile to serialize;
+	-- if it's busy, the new reason is dropped (idempotent for the same target node).
 	write_status_file({
 		ok = true,
 		queued = true,
@@ -313,8 +300,10 @@ node.write = function(self, section)
 		server = server,
 		port = port
 	})
-	luci.sys.call("( /usr/bin/lua /usr/share/shadowsocksr/sync-apply.lua " ..
-		"'" .. reason .. "' >/tmp/ssrplus-sync-apply-bg.log 2>&1 ) &")
+	if not sync_apply_is_running() then
+		luci.sys.call("( /usr/bin/lua /usr/share/shadowsocksr/sync-apply.lua " ..
+			"'" .. reason .. "' >/tmp/ssrplus-sync-apply-bg.log 2>&1 ) &")
+	end
 	luci.http.redirect(luci.dispatcher.build_url("admin", "services", "shadowsocksr", "servers"))
 end
 
