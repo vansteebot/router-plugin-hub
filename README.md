@@ -8,6 +8,8 @@
 
 Router Plugin Hub 是面向路由器插件增强开发的总仓库。当前主包 **SSR Plus+ Enhanced** 是对上游 `luci-app-ssr-plus` 的 LuCI 界面 + 后端脚本增强,聚焦三件事:**严格国内分流不漏流量**、**UI 永远可点不卡死**、**一次 .run 安装无残留**。
 
+> 🆕 **刚买回路由器、之前没碰过 OpenWrt / iStore 的人**,直接看 **[👉 全新手完整教程](docs/tutorials/getting-started.md)** —— 从开箱激活 → 一键叠加 iStore 商店 → 上传我们的 `.run` → 4 条防 WebRTC/QUIC 泄漏规则 → 浏览器自测,一路命令照抄即可。已经有 iStoreOS 环境的老用户可以直接看下面的"📦 最新版本"和"🚀 完整安装教程"。
+
 ---
 
 ## 📦 最新版本
@@ -27,7 +29,9 @@ Router Plugin Hub 是面向路由器插件增强开发的总仓库。当前主�
 
 ## 🚀 完整安装教程
 
-下面是一条从"刚刷完原厂固件"到"代理生效绿灯亮起"的最短路径。命令全部针对本仓库的 .run 安装包,**不依赖任何第三方脚本服务器**,所有 URL 都指向你自己的 GitHub Release。
+> 👉 **从未装过 iStoreOS / OpenWrt?** 别从这一段开始 —— 先去 **[新手完整教程](docs/tutorials/getting-started.md)**,那里覆盖了开箱激活 → 一键叠加 iStore 商店 → 上传 `.run` → WebRTC 防泄漏 → 浏览器验证整条路径。下面这段假设你的路由器**已经在跑** iStoreOS 风格固件,且 LuCI 已经能进。
+
+下面是一条从"已有 iStoreOS"到"代理生效绿灯亮起"的最短路径。命令全部针对本仓库的 .run 安装包,**不依赖任何第三方脚本服务器**,所有 URL 都指向你自己的 GitHub Release。
 
 ### 1. 准备前置条件
 
