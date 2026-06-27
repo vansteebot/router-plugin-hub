@@ -212,9 +212,10 @@ $installLines.Add('exit 0')
 Write-Utf8NoBom (Join-Path $packageRoot 'install.sh') (($installLines -join "`n") + "`n")
 
 Write-Host "[3/5] Creating full payload archive..."
-$tarProc = Start-Process -FilePath 'tar.exe' -ArgumentList @('-czf', $tarballPath, '-C', $packageRoot, '.') -NoNewWindow -Wait -PassThru
+$tarExe = if (Test-Path "$env:SystemRoot\System32\tar.exe") { "$env:SystemRoot\System32\tar.exe" } else { 'tar.exe' }
+$tarProc = Start-Process -FilePath $tarExe -ArgumentList @('-czf', $tarballPath, '-C', $packageRoot, '.') -NoNewWindow -Wait -PassThru
 if ($tarProc.ExitCode -ne 0) {
-    throw "tar.exe failed with exit code $($tarProc.ExitCode)"
+    throw "tar.exe failed with exit code $($tarProc.ExitCode) (binary: $tarExe)"
 }
 
 Write-Host "[4/5] Building self-extracting .run..."

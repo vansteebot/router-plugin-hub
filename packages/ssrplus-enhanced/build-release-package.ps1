@@ -159,9 +159,10 @@ $installLines.Add('exit 0')
 Write-Utf8NoBom (Join-Path $packageRoot 'install.sh') (($installLines -join "`n") + "`n")
 
 $tarArgs = @('-czf', $tarballPath, '-C', $packageRoot, '.')
-$tarProc = Start-Process -FilePath 'tar.exe' -ArgumentList $tarArgs -NoNewWindow -Wait -PassThru
+$tarExe = if (Test-Path "$env:SystemRoot\System32\tar.exe") { "$env:SystemRoot\System32\tar.exe" } else { 'tar.exe' }
+$tarProc = Start-Process -FilePath $tarExe -ArgumentList $tarArgs -NoNewWindow -Wait -PassThru
 if ($tarProc.ExitCode -ne 0) {
-    throw "tar.exe failed with exit code $($tarProc.ExitCode)"
+    throw "tar.exe failed with exit code $($tarProc.ExitCode) (binary: $tarExe)"
 }
 
 $stubLines = New-Object System.Collections.Generic.List[string]
